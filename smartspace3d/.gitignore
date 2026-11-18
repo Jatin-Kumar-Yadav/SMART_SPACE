@@ -1,0 +1,47 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# backend secret
+server/.token
+# downloaded person-detection model (see npm run fetch-model)
+public/models/
+
+# environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# build and tool caches
+*.tsbuildinfo
+.vite/
+coverage/
+.eslintcache
+.npm/
+
+# OS junk
+Thumbs.db
+Desktop.ini
