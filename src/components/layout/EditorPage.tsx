@@ -9,7 +9,6 @@ import { useShortcuts } from '@/hooks/useShortcuts'
 import { useSimClock } from '@/hooks/useSimClock'
 import { useLayout } from '@/store/layoutStore'
 import { ModeRail } from './ModeRail'
-import { CameraWorkspace } from '@/components/camera/CameraWorkspace'
 import { IoTWorkspace } from '@/components/iot/IoTWorkspace'
 import { useEditor } from '@/store/editorStore'
 import { toast } from '@/store/uiStore'
@@ -49,7 +48,6 @@ function Editor() {
             <RightPanel />
           </>
         )}
-        {mode === 'camera' && <CameraWorkspace />}
         {mode === 'iot' && <IoTWorkspace />}
       </div>
       <HoverTooltip />

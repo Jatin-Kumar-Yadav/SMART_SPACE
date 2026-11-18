@@ -17,11 +17,11 @@ import { newId } from '@/utils/math'
 export const WALL_THICKNESS = 0.2
 
 export const defaultFloor = (): FloorMaterial => ({
-  preset: 'ceramic',
-  tileSize: 0.6,
+  preset: 'wood',
+  tileSize: 1.0,
   rotation: 0,
   offset: [0, 0],
-  roughness: 0.35,
+  roughness: 0.55,
   tint: '#ffffff',
   stretch: false,
 })

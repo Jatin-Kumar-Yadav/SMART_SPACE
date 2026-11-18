@@ -2,8 +2,8 @@ import { acLevels, createObject } from '@/objects/catalog'
 import { closestWall, createSpace, defaultFloor, placeOnWall } from '@/objects/spaceFactory'
 import { generateOccupants } from '@/simulation/occupancy'
 import { captureStates, createScenario, DEFAULT_SIM } from '@/simulation/scenario'
-import type { FloorRegion, ObjectKind, Occupant, Scenario, SceneObject, Space } from '@/types'
-import { mulberry32, newId } from '@/utils/math'
+import type { ObjectKind, Occupant, Scenario, SceneObject, Space } from '@/types'
+import { mulberry32 } from '@/utils/math'
 
 /**
  * Seminar Hall demo — 30 m × 20 m × 4 m, 120 seats (8 rows × 5 desks × 3 chairs).
@@ -83,12 +83,8 @@ export function createSeminarHall(): Space {
   }
 
   space.objects = objs
-  const regions: FloorRegion[] = [
-    { id: newId('reg'), name: 'Stage (wood)', x: 4, z: 0, w: 22, d: 4.2, material: { ...defaultFloor(), preset: 'wood', tileSize: 1.0, roughness: 0.5 } },
-    { id: newId('reg'), name: 'Entrance (marble)', x: 26.8, z: 14, w: 3.2, d: 6, material: { ...defaultFloor(), preset: 'marble', tileSize: 1.2, roughness: 0.2 } },
-  ]
-  space.floorRegions = regions
-  space.floor = { ...defaultFloor(), preset: 'ceramic', tileSize: 0.6 }
+  space.floorRegions = []
+  space.floor = { ...defaultFloor(), preset: 'wood', tileSize: 1.0 }
 
   // ── scenarios ──
   const states = captureStates(objs)

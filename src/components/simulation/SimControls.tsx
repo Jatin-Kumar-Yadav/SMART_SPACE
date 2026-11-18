@@ -1,8 +1,8 @@
-import { FastForward, Pause, Play, RotateCcw, Square } from 'lucide-react'
+import { Pause, Play, RotateCcw, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { SPEEDS, simPause, simReset, simResume, simSkip, simStart, simStop, useSim } from '@/store/simStore'
+import { SPEEDS, simPause, simReset, simResume, simStart, simStop, useSim } from '@/store/simStore'
 import { formatDuration } from '@/simulation/analytic'
 
 /** Start / pause / resume / stop / reset and speed selection. */
@@ -27,12 +27,6 @@ export function SimControls({ compact = false }: { compact?: boolean }) {
           <button key={s} onClick={() => setSpeed(s)} className={cn('h-7 px-2 text-[12px] font-medium', speed === s ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')}>{s}×</button>
         ))}
       </div>
-      {!compact && (
-        <>
-          <Tip label="Fast-forward 10 simulated minutes"><Button size="sm" onClick={() => simSkip(600)}><FastForward size={12} />+10 min</Button></Tip>
-          <Tip label="Fast-forward 1 simulated hour"><Button size="sm" onClick={() => simSkip(3600)}><FastForward size={12} />+1 h</Button></Tip>
-        </>
-      )}
       <span className="ml-1 font-mono text-[12px] tabular-nums text-slate-600">t = {formatDuration(time)}</span>
     </div>
   )

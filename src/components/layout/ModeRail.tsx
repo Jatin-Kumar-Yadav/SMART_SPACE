@@ -1,11 +1,10 @@
-import { Box, Cpu, PanelLeftClose, PanelLeftOpen, Video } from 'lucide-react'
+import { Box, Cpu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useLayout, type AppMode } from '@/store/layoutStore'
 
 const MODES: { id: AppMode; label: string; Icon: typeof Box }[] = [
   { id: 'simulation', label: 'Virtual Simulation', Icon: Box },
-  { id: 'camera', label: 'Live Camera Digital Twin', Icon: Video },
   { id: 'iot', label: 'IoT Hardware Integration', Icon: Cpu },
 ]
 

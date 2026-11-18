@@ -1,10 +1,7 @@
-import { Download, PenLine } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Field, NumberInput, Section, SelectBox, TextInput, Toggle } from '@/components/ui/controls'
+import { Field, NumberInput, Section, SelectBox, TextInput } from '@/components/ui/controls'
 import { exportProject, serializeProject } from '@/database/projectIO'
 import { getRepository } from '@/database/repository'
-import { CATALOG } from '@/objects/catalog'
-import { useEditor, type WallMode } from '@/store/editorStore'
+import { useEditor } from '@/store/editorStore'
 import { toast } from '@/store/uiStore'
 import type { LengthUnit, SpaceType } from '@/types'
 import { formatLength, fromMeters, toMeters } from '@/utils/units'
@@ -46,16 +43,6 @@ export function SpacePanel() {
   const apply = useEditor((s) => s.apply)
   const rename = useEditor((s) => s.renameSpace)
   const setDimensions = useEditor((s) => s.setDimensions)
-  const selectWall = useEditor((s) => s.selectWall)
-  const selectedWall = useEditor((s) => s.selectedWallId)
-  const tool = useEditor((s) => s.tool)
-  const setTool = useEditor((s) => s.setTool)
-  const wallMode = useEditor((s) => s.wallMode)
-  const showCeiling = useEditor((s) => s.showCeiling)
-  const markers = useEditor((s) => s.showDeviceMarkers)
-  const people = useEditor((s) => s.showOccupants)
-  const snapSize = useEditor((s) => s.snapSize)
-  const set = useEditor((s) => s.set)
   const u = space.unit
   const area = space.dims.length * space.dims.width
   const changeDim = (k: 'length' | 'width' | 'height', v: number) => {
@@ -64,7 +51,6 @@ export function SpacePanel() {
     if (outside && !confirm(`${outside} object(s) would end up outside the smaller room. Resize anyway?`)) return
     setDimensions(next)
   }
-  const interior = space.walls.filter((w) => !w.perimeter)
   return (
     <>
       <Section title="Space">
@@ -82,26 +68,6 @@ export function SpacePanel() {
           {formatLength(space.dims.length, 'm')} × {formatLength(space.dims.width, 'm')} × {formatLength(space.dims.height, 'm')} · {area.toFixed(0)} m² · {(area * space.dims.height).toFixed(0)} m³
         </div>
         {area > 2500 && <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">Large space: the simulation grid is coarsened automatically to stay responsive. Rendering is unaffected.</div>}
-      </Section>
-      <Section title="Interior walls" right={<Button size="sm" variant={tool === 'wall' ? 'active' : 'secondary'} onClick={() => setTool(tool === 'wall' ? 'select' : 'wall')}><PenLine size={12} />{tool === 'wall' ? 'Drawing…' : 'Draw wall'}</Button>}>
-        {interior.length === 0 && <p className="text-[11px] text-slate-400">No interior walls yet. Draw walls to split the space into rooms, then add doors and windows to them.</p>}
-        {interior.map((w, i) => (
-          <button key={w.id} onClick={() => { selectWall(w.id); }} className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-[12px] ${selectedWall === w.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-            <span>Wall {i + 1}</span><span className="text-slate-500">{Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]).toFixed(2)} m</span>
-          </button>
-        ))}
-        <p className="text-[11px] text-slate-400">Select a wall to edit its thickness and height in the Properties tab.</p>
-      </Section>
-      <Section title="Display">
-        <Field label="Walls facing the camera"><SelectBox<WallMode> value={wallMode} onChange={(wallMode) => set({ wallMode })} options={[{ value: 'auto', label: 'Cut away (dollhouse)' }, { value: 'full', label: 'Always full height' }, { value: 'low', label: 'Always low' }]} /></Field>
-        <Field label="Snap size (m)"><NumberInput value={snapSize} step={0.05} min={0.05} max={2} onCommit={(snapSize) => set({ snapSize })} /></Field>
-        <Toggle checked={showCeiling} onChange={(showCeiling) => set({ showCeiling })} label="Show ceiling" />
-        <Toggle checked={markers} onChange={(showDeviceMarkers) => set({ showDeviceMarkers })} label="Highlight environmental devices" />
-        <Toggle checked={people} onChange={(showOccupants) => set({ showOccupants })} label="Show occupants" />
-      </Section>
-      <Section title="Project file">
-        <Button size="sm" onClick={() => void exportCurrentSpace()}><Download size={12} />Export JSON</Button>
-        <p className="text-[11px] text-slate-400">Includes uploaded textures. Import a project file from the dashboard. {space.objects.filter((o) => CATALOG[o.kind].category === 'device').length} devices · {space.objects.length} objects.</p>
       </Section>
     </>
   )

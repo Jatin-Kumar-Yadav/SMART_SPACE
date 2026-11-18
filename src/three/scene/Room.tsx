@@ -40,7 +40,17 @@ function FloorPatch({ x, z, w, d, material, y = 0 }: { x: number; z: number; w: 
 export function Floor() {
   const dims = useEditor((s) => s.space!.dims)
   const floor = useEditor((s) => s.space!.floor)
-  const regions = useEditor((s) => s.space!.floorRegions)
+  const woodFloor: FloorMaterial = useMemo(
+    () => ({
+      ...floor,
+      preset: 'wood',
+      tileSize: 1.0,
+      roughness: 0.55,
+      textureId: undefined,
+      tint: '#ffffff',
+    }),
+    [floor],
+  )
   const select = useEditor((s) => s.select)
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta < 4 && useEditor.getState().tool === 'select') {
@@ -51,10 +61,7 @@ export function Floor() {
   return (
     <group>
       <group onClick={onClick}>
-        <FloorPatch x={0} z={0} w={dims.length} d={dims.width} material={floor} />
-        {regions.map((r, i) => (
-          <FloorPatch key={r.id} x={r.x} z={r.z} w={r.w} d={r.d} material={r.material} y={0.004 + i * 0.001} />
-        ))}
+        <FloorPatch x={0} z={0} w={dims.length} d={dims.width} material={woodFloor} />
       </group>
       <HoverPlane />
     </group>

@@ -1,6 +1,5 @@
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { NumberInput } from '@/components/ui/controls'
 import { allRoomDevices } from '@/iot/requirements'
 import { useEditor } from '@/store/editorStore'
 import { updateHardware } from '@/store/iotStore'
@@ -61,7 +60,6 @@ export function DevicePanel() {
           </div>
         ))}
         <p className="mt-1.5 text-[10.5px] text-slate-400">Temperature at seated breathing height, at least 2 m from AC outlets. Light at the working plane.</p>
-        <label className="mt-2 flex items-center justify-between text-[11.5px] text-slate-600">Motor supply (V)<NumberInput value={cfg?.motorSupplyV ?? 5} min={3} max={6} step={0.5} digits={1} onCommit={(v) => updateHardware({ motorSupplyV: v })} className="w-16" /></label>
       </section>
     </aside>
   )

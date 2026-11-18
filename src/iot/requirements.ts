@@ -94,7 +94,13 @@ export function proposeSensors(space: Space, cfg: Pick<HardwareConfig, 'excluded
   const lights = devs.filter((d) => d.kind === 'light')
   let pts = allSeatSlots(space.objects).map((s) => [s.position[0], s.position[2]] as [number, number])
   if (pts.length === 0) pts = [[L * 0.25, W * 0.25], [L * 0.75, W * 0.25], [L * 0.25, W * 0.75], [L * 0.75, W * 0.75]]
-  const k = clamp(Math.max(acs.length, Math.ceil(fans.length / 3), 1), 1, Math.min(6, pts.length, ZONE_LABELS.length))
+  if (acs.length > pts.length) {
+    pts = [...pts, ...acs]
+  }
+  const minK = Math.max(acs.length, 1)
+  const maxK = Math.min(ZONE_LABELS.length, Math.max(minK, 6, pts.length))
+  const targetK = Math.max(acs.length, Math.ceil(fans.length / 3), 1)
+  const k = clamp(targetK, 1, maxK)
   const centres = cluster(pts, k)
   const out: SensorPoint[] = []
   centres.forEach((c, i) => {

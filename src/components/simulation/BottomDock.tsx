@@ -35,6 +35,8 @@ function Overview() {
   const fans = snap.devices.filter((d) => d.type === 'fan')
   const acs = snap.devices.filter((d) => d.type === 'ac')
   const est = st.estimate
+  const occZones = snap.zoneStats.filter((z) => z.occupants > 0)
+  const comfortableOccZones = occZones.filter((z) => z.comfortable).length
   return (
     <div className="grid grid-cols-2 gap-2 overflow-auto sm:grid-cols-4 xl:grid-cols-6">
       <Tile label="Room temperature" value={`${st.avgT.toFixed(1)} °C`} sub={`min ${st.minT.toFixed(1)} · max ${st.maxT.toFixed(1)}`} tone={st.comfort.averageTargetReached ? 'ok' : undefined} />
@@ -46,7 +48,22 @@ function Overview() {
       <Tile label="Energy used" value={`${st.energyKWh.toFixed(2)} kWh`} sub={`lights ${Math.round(st.lightW)} W`} />
       <Tile label="Est. time to comfort" value={est.toComfortSeconds != null ? formatDuration(est.toComfortSeconds) : '—'} sub={est.toComfortNote} />
       <Tile label="Heat gains" value={`${(st.gainW / 1000).toFixed(1)} kW`} sub="people, lights, solar, envelope" />
-      <Tile label="Occupied zones" value={st.comfort.occupiedComfort ? 'Comfortable' : 'Not yet'} tone={st.comfort.occupiedComfort ? 'ok' : 'warn'} sub={`spread ${st.comfort.spread.toFixed(1)} °C`} />
+      <Tile
+        label="Occupied zone comfort"
+        value={
+          !st.occupants
+            ? 'No occupants'
+            : st.comfort.occupiedComfort
+              ? 'Comfortable'
+              : `${comfortableOccZones} / ${occZones.length} comfortable`
+        }
+        tone={st.comfort.occupiedComfort ? 'ok' : 'warn'}
+        sub={
+          st.occupants
+            ? `${occZones.length} zone${occZones.length === 1 ? '' : 's'} occupied · spread ${st.comfort.spread.toFixed(1)} °C`
+            : `spread ${st.comfort.spread.toFixed(1)} °C`
+        }
+      />
       <Tile label="Uniformity" value={st.comfort.uniform ? 'Uniform' : 'Uneven'} tone={st.comfort.uniform ? 'ok' : 'warn'} />
       <Tile label="Sim time" value={formatDuration(st.time)} sub={`clock ${Math.floor(st.timeOfDay)}:${String(Math.round((st.timeOfDay % 1) * 60)).padStart(2, '0')}`} />
     </div>
@@ -64,7 +81,7 @@ function Devices() {
     <div className="h-full overflow-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full text-[12px]">
         <thead className="sticky top-0 bg-slate-50 text-left text-[11px] text-slate-500">
-          <tr><th className="px-2 py-1.5 font-medium">Device</th><th className="px-2 font-medium">Mode</th><th className="px-2 font-medium">Level / state</th><th className="px-2 font-medium">Power</th><th className="px-2 font-medium">Heat removed</th></tr>
+          <tr><th className="px-2 py-1.5 font-medium">Device</th><th className="px-2 font-medium">Mode</th><th className="px-2 font-medium">Level / state</th><th className="px-2 font-medium">Power</th></tr>
         </thead>
         <tbody>
           {snap.devices.map((d) => {
@@ -87,7 +104,6 @@ function Devices() {
                   )}
                 </td>
                 <td className="px-2 tabular-nums">{Math.round(d.powerW)} W</td>
-                <td className="px-2 tabular-nums">{d.type === 'ac' ? `${(d.coolingW / 1000).toFixed(2)} kW` : '—'}</td>
               </tr>
             )
           })}

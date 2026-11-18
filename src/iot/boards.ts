@@ -149,7 +149,9 @@ export function pinSupports(p: PinSpec, fn: 'pwm' | 'digital-out' | 'digital-in'
 export function pinPreference(p: PinSpec, fn: 'pwm' | 'digital-in' | 'digital-io' | 'adc' | 'onewire'): number {
   let score = p.caution ? 100 : 0
   const inputOnly = !p.out
-  if (fn === 'pwm') score += 0
+  if (fn === 'pwm') {
+    if (p.adc && !p.adc2) score += 20
+  }
   else if (inputOnly) score -= 10 // spend input-only pins on inputs
   else score += 5 // keep output-capable pins for outputs
   return score + p.num / 1000

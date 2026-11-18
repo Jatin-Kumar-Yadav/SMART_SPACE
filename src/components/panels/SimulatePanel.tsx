@@ -1,5 +1,3 @@
-import { Dices } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Field, NumberInput, Section, SelectBox, Slider, Toggle } from '@/components/ui/controls'
 import { SimControls } from '@/components/simulation/SimControls'
 import { LIGHTING_PRESETS } from '@/simulation/scenario'
@@ -20,7 +18,6 @@ export function SimulatePanel() {
   const space = useEditor((s) => s.space!)
   const sc = activeScenario(space)
   const update = useEditor((s) => s.updateScenario)
-  const randomize = useEditor((s) => s.randomizeConditions)
   const snap = useSim((s) => s.snapshot)
   const st = snap?.stats
   const sim = sc.sim
@@ -35,14 +32,13 @@ export function SimulatePanel() {
           <Badge ok={st.comfort.uniform} label="Thermal uniformity" detail={`Spread across occupied zones: ${st.comfort.spread.toFixed(1)} °C`} />
         </Section>
       )}
-      <Section title="Temperature" right={<Button size="sm" onClick={randomize}><Dices size={12} />Random 27–40 °C</Button>}>
+      <Section title="Temperature">
         <div className="grid grid-cols-2 gap-2">
           <Field label="Initial indoor air (°C)"><NumberInput value={sc.initialTempC} step={0.5} min={5} max={50} onCommit={(initialTempC) => update(sc.id, { initialTempC })} /></Field>
           <Field label="Outside (°C)"><NumberInput value={sc.outsideTempC} step={0.5} min={-20} max={55} onCommit={(outsideTempC) => update(sc.id, { outsideTempC })} /></Field>
           <Field label="Target (°C)"><NumberInput value={sc.targetTempC} step={0.5} min={16} max={32} onCommit={(targetTempC) => update(sc.id, { targetTempC })} /></Field>
           <Field label="Tolerance ± (°C)"><NumberInput value={sim.toleranceC} step={0.25} min={0.25} max={5} onCommit={(toleranceC) => setSim({ toleranceC })} /></Field>
         </div>
-        <p className="text-[11px] text-slate-400">The random value is ambient room-air temperature, not body temperature.</p>
       </Section>
       <Section title="Lighting scenario">
         <Field label="Preset">

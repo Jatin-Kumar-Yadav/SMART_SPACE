@@ -1,4 +1,4 @@
-import { ArrowLeft, Box, Cloud, CloudOff, Grid3x3, Home, Magnet, Maximize, Redo2, RotateCcw, Save, Settings, Shuffle, Square, ThermometerSun, Undo2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Box, Cloud, CloudOff, Home, Maximize, Redo2, RotateCcw, Save, Settings, Square, Undo2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/controls'
 import { Tip } from '@/components/ui/tooltip'
@@ -30,11 +30,8 @@ export function TopBar() {
   const canUndo = useEditor((s) => s.past.length > 0)
   const canRedo = useEditor((s) => s.future.length > 0)
   const viewMode = useEditor((s) => s.viewMode)
-  const showGrid = useEditor((s) => s.showGrid)
-  const snap = useEditor((s) => s.snap)
   const set = useEditor((s) => s.set)
   const camera = useEditor((s) => s.camera)
-  const generate = useEditor((s) => s.generatePeople)
   const layout = useLayout((s) => s.set)
   const mode = useLayout((s) => s.mode)
   const setView = (v: '2d' | '3d') => {
@@ -59,8 +56,6 @@ export function TopBar() {
       <div className="flex overflow-hidden rounded-md border border-slate-200" role="group" aria-label="View mode">
         {(['3d', '2d'] as const).map((v) => <button key={v} onClick={() => setView(v)} className={cn('h-8 px-3 text-[12px] font-semibold uppercase', viewMode === v ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')}>{v}</button>)}
       </div>
-      <Icon label="Grid (G)" active={showGrid} onClick={() => set({ showGrid: !showGrid })}><Grid3x3 size={15} /></Icon>
-      <Icon label="Snap to grid" active={snap} onClick={() => set({ snap: !snap })}><Magnet size={15} /></Icon>
       <div className="mx-1 h-5 w-px bg-slate-200" />
       <Icon label="Fit room (F)" onClick={() => camera('fit')}><Maximize size={15} /></Icon>
       <Icon label="Isometric view" onClick={() => { set({ viewMode: '3d' }); camera('iso') }}><Box size={15} /></Icon>
@@ -69,8 +64,6 @@ export function TopBar() {
         </>
       )}
       <div className="ml-auto flex items-center gap-1.5">
-        <Button size="sm" onClick={() => { generate(); layout({ rightTab: 'people', rightOpen: true }) }}><Shuffle size={13} />Generate people</Button>
-        <Button size="sm" onClick={() => layout({ rightTab: 'simulate', rightOpen: true, bottomOpen: true })}><ThermometerSun size={13} />Simulation</Button>
         <Icon label="Settings" onClick={() => layout({ rightTab: 'space', rightOpen: true })}><Settings size={15} /></Icon>
       </div>
     </header>
