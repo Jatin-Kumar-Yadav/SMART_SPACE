@@ -23,3 +23,7 @@ input[type="range"] { accent-color: var(--ss-accent); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #cfd4dc; border-radius: 8px; }
 .ss-scroll { overflow-y: auto; }
+
+@keyframes ss-spin { to { transform: rotate(360deg); } }
+.ss-spin { animation: ss-spin linear infinite; transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) { .ss-spin { animation-duration: 4s !important; } }

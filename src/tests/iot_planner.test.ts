@@ -87,7 +87,7 @@ describe('IoT planner — scaling beyond pin count', () => {
     const cfg0 = defaultHardware(s)
     const base = cfg0.sensors.find((x) => x.kind === 'light')!
     const sensors = [1, 2, 3].map((i) => ({ ...base, id: `x${i}`, name: `L${i}`, zone: 'A' }))
-    const { plan: p } = plan(s, { sensors })
+    const { plan: p } = plan(s, { sensors, scaling: 'expanders' })
     expect(p.parts.some((x) => x.type === 'tca9548a')).toBe(true)
     expect(errors(p)).toEqual([])
   })

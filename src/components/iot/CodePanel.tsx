@@ -1,85 +1,103 @@
-import { Copy, Download, ExternalLink, FileCode2 } from 'lucide-react'
-import { useState } from 'react'
+import { Copy, Download, ExternalLink, FolderDown } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { SelectBox } from '@/components/ui/controls'
+import { highlight, langOf, type Tok } from '@/iot/highlight'
+import { PARTS } from '@/iot/parts'
+import { buildProject } from '@/iot/project'
 import { makeZip } from '@/iot/zip'
 import { useIot } from '@/store/iotStore'
 import { toast } from '@/store/uiStore'
+import { cn } from '@/lib/utils'
 import { copyText, downloadBlob } from './download'
 
-type Source = 'firmware' | 'wokwi'
-const WOKWI_FILES = ['sketch.ino', 'diagram.json', 'libraries.txt', 'wokwi.toml', 'README.md'] as const
+const TOK: Record<Tok['t'], string> = { kw: 'text-pink-400', type: 'text-sky-300', str: 'text-amber-300', num: 'text-orange-300', com: 'text-slate-500 italic', pre: 'text-violet-300', fn: 'text-emerald-300', plain: 'text-slate-200' }
+
+/** Read-only code viewer with line numbers and syntax colours. */
+export function CodeView({ text, file }: { text: string; file: string }) {
+  const lines = useMemo(() => highlight(text, langOf(file)), [text, file])
+  return (
+    <div className="min-h-0 flex-1 overflow-auto bg-slate-950 py-2 font-mono text-[11px] leading-[1.55]" tabIndex={0} aria-label="Generated code" data-testid="code-view">
+      <table className="min-w-full border-collapse">
+        <tbody>
+          {lines.map((l, i) => (
+            <tr key={i}>
+              <td className="w-10 select-none px-2 text-right align-top text-slate-600">{i + 1}</td>
+              <td className="whitespace-pre pr-3">{l.length ? l.map((t, j) => <span key={j} className={TOK[t.t]}>{t.s}</span>) : ' '}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 export function CodePanel() {
-  const { plan, firmware, wokwi, ctrl, guide } = useIot()
-  const [src, setSrc] = useState<Source>('firmware')
-  const [wfile, setWfile] = useState<(typeof WOKWI_FILES)[number]>('sketch.ino')
-  if (!plan || !ctrl) return <Empty />
+  const { plan, firmware, wokwi, ctrl, guide, manifest } = useIot()
+  const [file, setFile] = useState('firmware')
   const fw = firmware.find((f) => f.controllerId === ctrl)
-  const wk = wokwi[ctrl]
-
-  const text = src === 'firmware' ? (fw?.code ?? '') : wk?.ok ? wk.files[wfile] : ''
-  const fileName = src === 'firmware' ? (fw?.name.split('/').pop() ?? 'firmware.txt') : wfile
-  const copy = async (t: string, what: string) => toast((await copyText(t)) ? `${what} copied` : 'Copy was blocked by the browser. Use Download instead.', 'info')
+  const wk = ctrl ? wokwi[ctrl] : undefined
+  const entries = useMemo(() => {
+    const e: { key: string; label: string; name: string; text: string }[] = []
+    if (fw) e.push({ key: 'firmware', label: `${fw.name.split('/').pop()} · firmware (real hardware)`, name: fw.name.split('/').pop()!, text: fw.code })
+    if (wk?.ok) for (const n of ['sketch.ino', 'diagram.json', 'libraries.txt', 'wokwi.toml'] as const) e.push({ key: `w:${n}`, label: `${n} · Wokwi`, name: n, text: wk.files[n] })
+    if (manifest) e.push({ key: 'manifest', label: 'manifest.json · hardware manifest', name: 'manifest.json', text: JSON.stringify({ ...manifest, controllers: manifest.controllers.filter((c) => c.id === ctrl) }, null, 2) })
+    return e
+  }, [fw, wk, manifest, ctrl])
+  useEffect(() => { if (!entries.some((e) => e.key === file)) setFile(entries[0]?.key ?? 'firmware') }, [entries, file])
+  if (!plan || !ctrl) return <Empty />
+  const cur = entries.find((e) => e.key === file) ?? entries[0]
+  const text = cur?.text ?? ''
+  const copy = async () => toast((await copyText(text)) ? `${cur?.name} copied` : 'Copy was blocked by the browser. Use Download Code instead.', 'info')
+  const project = () => {
+    if (!manifest) return
+    downloadBlob('smartspace-hardware-project.zip', makeZip(buildProject(plan, manifest, firmware, wokwi, guide)) as BlobPart, 'application/zip')
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-2">
-        {(['firmware', 'wokwi'] as const).map((s) => (
-          <button key={s} onClick={() => setSrc(s)} className={cn('rounded-md px-2.5 py-1 text-xs font-medium', src === s ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100')}>{s === 'firmware' ? 'Hardware firmware' : 'Wokwi simulation'}</button>
+      <div className="flex items-center gap-1.5 border-b border-slate-200 px-3 py-2">
+        <SelectBox className="min-w-0 flex-1" value={cur?.key ?? ''} onChange={setFile} options={entries.map((e) => ({ value: e.key, label: e.label }))} />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 px-3 py-1.5">
+        <Button size="sm" variant="secondary" disabled={!text} onClick={() => void copy()}><Copy size={12} />Copy</Button>
+        <Button size="sm" variant="secondary" disabled={!text} onClick={() => cur && downloadBlob(cur.name, text)}><Download size={12} />Download Code</Button>
+        <Button size="sm" onClick={project} disabled={!manifest}><FolderDown size={12} />Download Project</Button>
+      </div>
+      {fw && file === 'firmware' && (
+        <p className="border-b border-slate-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900">{fw.language === 'python' ? 'Python 3 script' : 'Arduino sketch'} · boots disarmed, fail-safe on lost heartbeat. Compiled against API stubs only, not run on real hardware.</p>
+      )}
+      {file.startsWith('w:') && wk?.ok && (
+        <div className="space-y-1 border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-600">
+          {wk.substitutions.length > 0 && <p className="text-amber-800">Wokwi simulation copy: {wk.substitutions.map((s) => `${s.partId} (${s.reason.split('.')[0]})`).join('; ')}.</p>}
+          <button className="inline-flex items-center gap-1 text-blue-700 underline" onClick={() => { window.open(wk.openUrl, '_blank', 'noopener'); toast('Wokwi cannot import a link. Paste diagram.json and sketch.ino into the new project.', 'info') }}><ExternalLink size={11} />Open Wokwi (new project; paste the files)</button>
+        </div>
+      )}
+      {!wk?.ok && wk && file === 'firmware' && <p className="border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-600">No Wokwi export: {wk.reason}</p>}
+      <CodeView text={text || '— nothing to show —'} file={cur?.name ?? ''} />
+    </div>
+  )
+}
+
+export function LibrariesPanel() {
+  const { plan, firmware, ctrl } = useIot()
+  const fw = firmware.find((f) => f.controllerId === ctrl)
+  if (!plan || !ctrl) return <Empty />
+  const used = [...new Set(plan.parts.filter((p) => p.controllerId === ctrl).map((p) => p.type))]
+  const python = fw?.language === 'python'
+  const rows = (fw?.libraries ?? []).map((lib) => ({ lib, parts: used.filter((t) => (python ? PARTS[t].libraries.python : PARTS[t].libraries.arduino).includes(lib)).map((t) => PARTS[t].label) }))
+  return (
+    <div className="h-full overflow-auto p-3 text-[12px] text-slate-700">
+      <p className="mb-2 text-slate-500">{python ? 'Install with pip' : 'Install with Arduino IDE → Library Manager (or the same names in libraries.txt for Wokwi / PlatformIO)'}:</p>
+      <ul className="space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.lib} className={cn('rounded-lg border border-slate-200 bg-white px-2.5 py-1.5')}>
+            <p className="font-mono text-[11.5px] font-semibold text-slate-800">{r.lib}</p>
+            <p className="text-[11px] text-slate-500">{r.parts.length ? `for ${r.parts.join(', ')}` : 'networking / protocol (MQTT, JSON, Wi-Fi)'}</p>
+          </li>
         ))}
-        <span className="ml-auto text-[11px] text-slate-400">{ctrl}</span>
-      </div>
-
-      {src === 'firmware' && fw && (
-        <div className="space-y-1 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11.5px] text-slate-600">
-          <p className="font-medium text-slate-700">{fw.language === 'python' ? 'Python 3 script' : 'Arduino sketch'} · protocol v1 · boots disarmed, fail-safe on lost heartbeat</p>
-          <ol className="list-decimal space-y-0.5 pl-4">{fw.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
-          <p className="text-amber-700">Generated code. It has been compiled against API stubs and syntax-checked, but not run on real hardware.</p>
-        </div>
-      )}
-
-      {src === 'wokwi' && (
-        <div className="space-y-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11.5px] text-slate-600">
-          {!wk && <p>No export for this controller.</p>}
-          {wk && !wk.ok && <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900"><b>Cannot export to Wokwi.</b> {wk.reason}</p>}
-          {wk?.ok && (
-            <>
-              {wk.substitutions.length > 0 && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                  <p className="font-medium">Simulation copy: these parts are replaced in Wokwi only</p>
-                  <ul className="mt-0.5 list-disc pl-4">{wk.substitutions.map((s) => <li key={s.partId}><b>{s.partId}</b>: {s.reason}</li>)}</ul>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-1.5">
-                <Button size="sm" onClick={() => { window.open(wk.openUrl, '_blank', 'noopener'); toast('Wokwi opened. Paste diagram.json and sketch.ino into the new project (use the Copy buttons here).', 'info') }}><ExternalLink size={12} />Open in Wokwi</Button>
-                <Button size="sm" variant="secondary" onClick={() => downloadBlob(`wokwi-${ctrl}.zip`, makeZip(WOKWI_FILES.map((n) => ({ name: n, data: wk.files[n] }))) as BlobPart, 'application/zip')}><Download size={12} />Download all (.zip)</Button>
-              </div>
-              <ol className="list-decimal space-y-0.5 pl-4">
-                <li>Click <b>Open in Wokwi</b>{wk.openUrlVerified ? '' : ' (this board\'s start URL is unverified; use New project → Arduino Uno if it does not load)'}.</li>
-                <li>Replace <b>sketch.ino</b> and <b>diagram.json</b> there with the files below (Copy), and add <b>libraries.txt</b> in the Library Manager.</li>
-                <li>Wokwi has no documented import link, so SmartSpace cannot load the project for you.</li>
-              </ol>
-              <details><summary className="cursor-pointer text-slate-500">Warnings ({wk.warnings.length})</summary><ul className="mt-1 list-disc pl-4">{wk.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></details>
-              <div className="flex gap-1">{WOKWI_FILES.map((n) => <button key={n} onClick={() => setWfile(n)} className={cn('rounded px-2 py-0.5 text-[11px]', wfile === n ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100')}>{n}</button>)}</div>
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="flex items-center gap-1.5 border-b border-slate-200 px-3 py-1.5">
-        <FileCode2 size={13} className="text-slate-400" />
-        <span className="font-mono text-[11.5px] text-slate-700">{fileName}</span>
-        <div className="ml-auto flex gap-1">
-          <Button size="sm" variant="secondary" disabled={!text} onClick={() => void copy(text, fileName)}><Copy size={12} />Copy</Button>
-          <Button size="sm" variant="secondary" disabled={!text} onClick={() => downloadBlob(fileName, text)}><Download size={12} />Download</Button>
-        </div>
-      </div>
-      <pre className="min-h-0 flex-1 overflow-auto bg-slate-950 p-3 font-mono text-[11px] leading-[1.5] text-slate-200" tabIndex={0} aria-label="Generated code">{text || '— nothing to show —'}</pre>
-      <div className="flex gap-1.5 border-t border-slate-200 px-3 py-1.5">
-        <Button size="sm" variant="secondary" onClick={() => downloadBlob('connection-guide.md', guide)}><Download size={12} />Connection guide</Button>
-        <Button size="sm" variant="secondary" onClick={() => downloadBlob('smartspace-hardware.zip', makeZip([...firmware.map((f) => ({ name: f.name, data: f.code })), { name: 'connection-guide.md', data: guide }]) as BlobPart, 'application/zip')}><Download size={12} />All firmware + guide (.zip)</Button>
-      </div>
+        {rows.length === 0 && <li className="text-slate-500">No extra libraries.</li>}
+      </ul>
     </div>
   )
 }

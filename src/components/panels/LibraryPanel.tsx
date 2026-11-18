@@ -1,4 +1,5 @@
-import { Cpu, ImagePlus, Search, Trash2 } from 'lucide-react'
+import { Cpu, ImagePlus, PanelLeftClose, PanelLeftOpen, Search, Trash2 } from 'lucide-react'
+import { Tip } from '@/components/ui/tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, NumberInput, Section, Slider, Toggle } from '@/components/ui/controls'
@@ -232,15 +233,33 @@ export function LibraryPanel() {
   const tab = useLayout((s) => s.leftTab)
   const open = useLayout((s) => s.libraryOpen)
   const set = useLayout((s) => s.set)
-  if (!open) return null
+  const toggle = (
+    <Tip label={open ? 'Collapse object library' : 'Expand object library'} side="right">
+      <button
+        aria-label={open ? 'Collapse object library' : 'Expand object library'}
+        aria-expanded={open}
+        data-testid="library-toggle"
+        onClick={() => set({ libraryOpen: !open })}
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+      >
+        {open ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+      </button>
+    </Tip>
+  )
+  // The panel keeps its place in the layout and animates its width, so the 3D view is never remounted or reset.
   return (
-    <aside className="flex h-full w-[272px] shrink-0 flex-col border-r border-slate-200 bg-white" aria-label="Object library">
-      <div className="grid grid-cols-4 border-b border-slate-200 text-[11px]">
-        {TABS.map((t) => (
-          <button key={t.id} onClick={() => set({ leftTab: t.id })} className={cn('px-1 py-2.5 font-medium', tab === t.id ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500 hover:text-slate-800')}>{t.label}</button>
-        ))}
+    <aside className={cn('flex h-full shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-[width] duration-200 ease-out', open ? 'w-[272px]' : 'w-10')} aria-label="Object library">
+      <div className={cn('flex items-center border-b border-slate-200', open ? 'pr-1.5' : 'justify-center py-1.5')}>
+        {open && (
+          <div className="grid min-w-0 flex-1 grid-cols-4 text-[11px]">
+            {TABS.map((t) => (
+              <button key={t.id} onClick={() => set({ leftTab: t.id })} className={cn('px-1 py-2.5 font-medium', tab === t.id ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500 hover:text-slate-800')}>{t.label}</button>
+            ))}
+          </div>
+        )}
+        {toggle}
       </div>
-      {tab === 'materials' ? <MaterialsTab /> : <ObjectGrid tab={tab} />}
+      {open && <div className="flex min-h-0 w-[272px] flex-1 flex-col">{tab === 'materials' ? <MaterialsTab /> : <ObjectGrid tab={tab} />}</div>}
     </aside>
   )
 }

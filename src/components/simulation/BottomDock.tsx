@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { SimCharts } from '@/components/charts/SimCharts'
 import { SimControls } from '@/components/simulation/SimControls'
 import { cn } from '@/lib/utils'
@@ -19,36 +20,57 @@ const TABS: { id: BottomTab; label: string }[] = [
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'ok' | 'warn' }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="min-w-[188px] max-w-[260px] shrink-0 basis-[200px] rounded-lg border border-slate-200 bg-white px-3 py-2" data-testid="metric-card">
+      <div className="whitespace-nowrap text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={cn('text-lg font-semibold leading-tight text-slate-900', tone === 'ok' && 'text-emerald-700', tone === 'warn' && 'text-amber-700')}>{value}</div>
-      {sub && <div className="text-[10.5px] text-slate-400">{sub}</div>}
+      {sub && <div className="line-clamp-2 text-[10.5px] leading-snug text-slate-400">{sub}</div>}
     </div>
   )
 }
 
+/**
+ * The nine overview cards in ONE horizontally scrolling row (trackpad, Shift + wheel, scrollbar, arrow buttons).
+ * "Occupied zones", "Uniformity" and "Sim time" are hidden here only: the engine still computes them
+ * (snapshot.stats.comfort, stats.time) and the Zones / Charts tabs still use them.
+ */
 function Overview() {
   const snap = useSim((s) => s.snapshot)
   const sc = useEditor((s) => activeScenario(s.space!))
+  const row = useRef<HTMLDivElement>(null)
+  const [edge, setEdge] = useState({ left: false, right: false })
+  const measure = () => {
+    const el = row.current
+    if (el) setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 })
+  }
+  useEffect(() => {
+    measure()
+    const el = row.current
+    if (!el) return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  })
   if (!snap) return null
   const st = snap.stats
   const fans = snap.devices.filter((d) => d.type === 'fan')
   const acs = snap.devices.filter((d) => d.type === 'ac')
   const est = st.estimate
+  const by = (dx: number) => row.current?.scrollBy({ left: dx, behavior: 'smooth' })
   return (
-    <div className="grid grid-cols-2 gap-2 overflow-auto sm:grid-cols-4 xl:grid-cols-6">
-      <Tile label="Room temperature" value={`${st.avgT.toFixed(1)} °C`} sub={`min ${st.minT.toFixed(1)} · max ${st.maxT.toFixed(1)}`} tone={st.comfort.averageTargetReached ? 'ok' : undefined} />
-      <Tile label="Target" value={`${sc.targetTempC} °C`} sub={`±${sc.sim.toleranceC} °C · outside ${sc.outsideTempC} °C`} />
-      <Tile label="Occupancy" value={`${st.occupants}`} sub={`${Math.round(st.occupantHeatW)} W body heat`} />
-      <Tile label="Lighting" value={`${Math.round(st.occLux)} lx`} sub={`${st.occupants ? "at seats" : "room avg"} · target ${sc.targetLux} lx · room avg ${Math.round(st.avgLux)} · outdoor ${Math.round(st.outdoorLux).toLocaleString()}`} />
-      <Tile label="Active fans" value={`${fans.filter((f) => f.level > 0).length} / ${fans.length}`} sub={`${Math.round(st.fanW)} W`} />
-      <Tile label="Active AC units" value={`${acs.filter((f) => f.level > 0).length} / ${acs.length}`} sub={`${(st.coolingW / 1000).toFixed(1)} kW cooling · ${(st.acElectricW / 1000).toFixed(1)} kW elec.`} />
-      <Tile label="Energy used" value={`${st.energyKWh.toFixed(2)} kWh`} sub={`lights ${Math.round(st.lightW)} W`} />
-      <Tile label="Est. time to comfort" value={est.toComfortSeconds != null ? formatDuration(est.toComfortSeconds) : '—'} sub={est.toComfortNote} />
-      <Tile label="Heat gains" value={`${(st.gainW / 1000).toFixed(1)} kW`} sub="people, lights, solar, envelope" />
-      <Tile label="Occupied zones" value={st.comfort.occupiedComfort ? 'Comfortable' : 'Not yet'} tone={st.comfort.occupiedComfort ? 'ok' : 'warn'} sub={`spread ${st.comfort.spread.toFixed(1)} °C`} />
-      <Tile label="Uniformity" value={st.comfort.uniform ? 'Uniform' : 'Uneven'} tone={st.comfort.uniform ? 'ok' : 'warn'} />
-      <Tile label="Sim time" value={formatDuration(st.time)} sub={`clock ${Math.floor(st.timeOfDay)}:${String(Math.round((st.timeOfDay % 1) * 60)).padStart(2, '0')}`} />
+    <div className="relative">
+      <div ref={row} onScroll={measure} data-testid="metric-row" className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden pb-1.5" tabIndex={0} aria-label="Simulation metrics">
+        <Tile label="Room temperature" value={`${st.avgT.toFixed(1)} °C`} sub={`min ${st.minT.toFixed(1)} · max ${st.maxT.toFixed(1)}`} tone={st.comfort.averageTargetReached ? 'ok' : undefined} />
+        <Tile label="Target" value={`${sc.targetTempC} °C`} sub={`±${sc.sim.toleranceC} °C · outside ${sc.outsideTempC} °C`} />
+        <Tile label="Occupancy" value={`${st.occupants}`} sub={`${Math.round(st.occupantHeatW)} W body heat`} />
+        <Tile label="Lighting" value={`${Math.round(st.occLux)} lx`} sub={`${st.occupants ? 'at seats' : 'room avg'} · target ${sc.targetLux} lx · room avg ${Math.round(st.avgLux)} · outdoor ${Math.round(st.outdoorLux).toLocaleString()}`} />
+        <Tile label="Active fans" value={`${fans.filter((f) => f.level > 0).length} / ${fans.length}`} sub={`${Math.round(st.fanW)} W`} />
+        <Tile label="Active AC units" value={`${acs.filter((f) => f.level > 0).length} / ${acs.length}`} sub={`${(st.coolingW / 1000).toFixed(1)} kW cooling · ${(st.acElectricW / 1000).toFixed(1)} kW elec.`} />
+        <Tile label="Energy used" value={`${st.energyKWh.toFixed(2)} kWh`} sub={`lights ${Math.round(st.lightW)} W`} />
+        <Tile label="Est. time to comfort" value={est.toComfortSeconds != null ? formatDuration(est.toComfortSeconds) : '—'} sub={est.toComfortNote} />
+        <Tile label="Heat gains" value={`${(st.gainW / 1000).toFixed(1)} kW`} sub="people, lights, solar, envelope" />
+      </div>
+      {edge.left && <button aria-label="Scroll metrics left" onClick={() => by(-360)} className="absolute left-0 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow hover:bg-white"><ChevronLeft size={15} /></button>}
+      {edge.right && <button aria-label="Scroll metrics right" onClick={() => by(360)} className="absolute right-0 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow hover:bg-white"><ChevronRight size={15} /></button>}
     </div>
   )
 }
@@ -142,7 +164,7 @@ export function BottomDock() {
   const st = useSim((s) => s.snapshot?.stats)
   const status = useSim((s) => s.status)
   return (
-    <div className={cn('flex shrink-0 flex-col border-t border-slate-200 bg-slate-50', open ? 'h-[290px]' : 'h-10')}>
+    <div className={cn('flex shrink-0 flex-col border-t border-slate-200 bg-slate-50', !open ? 'h-10' : tab === 'overview' ? 'h-[150px]' : 'h-[290px]')}>
       <div className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3">
         <button onClick={() => set({ bottomOpen: !open })} aria-label={open ? 'Collapse panel' : 'Expand panel'} className="rounded p-1 text-slate-500 hover:bg-slate-100">{open ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</button>
         <span className={cn('h-2 w-2 rounded-full', status === 'running' ? 'animate-pulse bg-emerald-500' : status === 'paused' ? 'bg-amber-500' : 'bg-slate-300')} aria-hidden />

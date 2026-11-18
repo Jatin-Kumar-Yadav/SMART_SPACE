@@ -64,7 +64,7 @@ describe('Wokwi export', () => {
     expect(wokwiSupport(rpi)).toMatchObject({ ok: false })
     const r = generateWokwi(rpi, { spaceId: 'x' })
     expect(r.ok).toBe(false)
-    const many = plan(Array<ObjectKind>(20).fill('ceilingLight'))
+    const many = plan(Array<ObjectKind>(20).fill('ceilingLight'), { scaling: 'expanders' })
     const w = generateWokwi(many, { spaceId: 'x' })
     expect(many.parts.some((x) => x.type === 'pca9685')).toBe(true)
     expect(w.ok).toBe(false)

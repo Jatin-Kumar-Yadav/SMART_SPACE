@@ -89,6 +89,9 @@ export function simSetDevice(id: string, patch: DevicePatch) {
   publish(true)
 }
 
+/** Push the engine state to subscribers right now (after an external change such as a sensor injection). */
+export const simPublish = () => publish(true)
+
 export function simStart() {
   if (!engine) simInit()
   const { status } = useSim.getState()

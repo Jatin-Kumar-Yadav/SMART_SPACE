@@ -8,6 +8,7 @@ import type { ObjectKind } from '@/types'
 import { floorPointFromClient, sceneApi } from '../sceneApi'
 import { CameraLayer } from '../overlays/CameraLayer'
 import { CoverageLayer, FieldOverlay, ZoneLayer } from '../overlays/Fields'
+import { DaylightLayer } from '../overlays/Daylight'
 import { InfluenceLayer } from '../overlays/Influence'
 import { CameraRig } from './CameraRig'
 import { GhostLayer, ObjectsLayer, SelectionLayer } from './Objects'
@@ -114,6 +115,7 @@ export function EditorCanvas() {
         <PeopleLayer />
         <FieldOverlay />
         <InfluenceLayer />
+        <DaylightLayer />
         <ZoneLayer />
         <CoverageLayer />
         <CameraLayer />

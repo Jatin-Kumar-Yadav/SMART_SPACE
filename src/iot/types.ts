@@ -103,10 +103,14 @@ export interface PartSpec {
   notes: string[]
 }
 
+export type ControllerRole = 'standalone' | 'master' | 'node'
+
 export interface Controller {
   id: string
   family: ControllerFamily
   label: string
+  /** standalone: the only controller. master: aggregates the nodes (broker client + gateway). node: serves one group of zones. */
+  role?: ControllerRole
 }
 
 export type VirtualKind = 'fan' | 'ac' | 'light'

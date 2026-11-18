@@ -1,14 +1,16 @@
+import { useEffect, useState } from 'react'
 import { Copy, Eye, EyeOff, Lock, LockOpen, RotateCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Field, NumberInput, Section, Slider, TextInput, Toggle } from '@/components/ui/controls'
 import { CATALOG } from '@/objects/catalog'
 import { placementIssue } from '@/objects/collision'
 import { placeOnWall, sideOfWall } from '@/objects/spaceFactory'
+import { daylightOf, MAX_DIRECTION_DEG } from '@/simulation/daylight'
 import { seatCapacityOf } from '@/simulation/occupancy'
 import { setWindowState } from '@/store/windowActions'
 import { useEditor } from '@/store/editorStore'
 import { toast } from '@/store/uiStore'
-import type { SceneObject, Vec3, Wall } from '@/types'
+import type { DaylightFalloff, DaylightInfluence, SceneObject, Vec3, Wall } from '@/types'
 import { deg, rad } from '@/utils/math'
 import { wallLength } from '@/utils/geometry'
 import { DevicePanel } from './DevicePanel'
@@ -135,6 +137,7 @@ function ObjectProps({ obj }: { obj: SceneObject }) {
           <Field label="Solar heat gain coefficient"><NumberInput value={obj.window.shgc} step={0.05} min={0} max={1} onCommit={(shgc) => update(obj.id, { window: { ...obj.window!, shgc } })} /></Field>
         </Section>
       )}
+      {obj.window && <DaylightSection obj={obj} />}
       {obj.device && <DevicePanel obj={obj} />}
       <div className="h-6" />
       <button className="hidden" onClick={() => select([])} />
@@ -211,4 +214,52 @@ export function PropertiesPanel() {
   }
   const obj = space.objects.find((o) => o.id === selection[0])
   return obj ? <ObjectProps obj={obj} /> : <Empty />
+}
+
+const FALLOFFS: [DaylightFalloff, string][] = [['exp', 'Exponential (natural)'], ['linear', 'Linear'], ['smooth', 'Smooth cut-off']]
+const PROFILE_AT = ['at glass', '25 %', '50 %', '75 %', 'far end']
+
+/** Natural light influence: an approximate daylight region. Every value feeds the lighting simulation. */
+/** Slider that follows the thumb while dragging and writes once on release. */
+function DSlider({ value, onCommit, ...rest }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; onCommit: (v: number) => void }) {
+  const [v, setV] = useState(value)
+  useEffect(() => setV(value), [value])
+  return <Slider {...rest} value={v} onChange={setV} onCommit={onCommit} />
+}
+
+function DaylightSection({ obj }: { obj: SceneObject }) {
+  const update = useEditor((s) => s.updateObject)
+  const p = daylightOf(obj)
+  const set = (patch: Partial<DaylightInfluence>) => update(obj.id, { window: { ...obj.window!, daylight: { ...p, ...patch } } })
+  const [adv, setAdv] = useState(false)
+  const profile = p.profile ?? [1, 1, 1, 1, 1]
+  return (
+    <Section title="Natural light influence">
+      <Toggle checked={p.show} onChange={(show) => set({ show })} label="Show influence region in 3D" />
+      <p className="text-[11px] leading-snug text-slate-500">An approximate daylight contribution, not ray tracing. Drag the golden handles in the 3D view, or type values here. Glass transmittance, shading and the open/closed state are separate settings above.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Length (m)"><NumberInput value={p.length} min={0.5} max={30} step={0.5} onCommit={(length) => set({ length })} /></Field>
+        <Field label="Width at glass (m)"><NumberInput value={p.width} min={0.3} max={20} step={0.5} onCommit={(width) => set({ width })} /></Field>
+      </div>
+      <Field label={`Spread ${p.spread.toFixed(0)}°`}><DSlider value={p.spread} min={0} max={90} step={1} onChange={() => undefined} onCommit={(spread) => set({ spread })} /></Field>
+      <Field label={`Direction ${p.direction > 0 ? '+' : ''}${p.direction.toFixed(0)}° from the inward normal`}><DSlider value={p.direction} min={-MAX_DIRECTION_DEG} max={MAX_DIRECTION_DEG} step={1} onChange={() => undefined} onCommit={(direction) => set({ direction })} /></Field>
+      <Field label={`Intensity ×${p.intensity.toFixed(2)}`}><DSlider value={p.intensity} min={0} max={2} step={0.05} onChange={() => undefined} onCommit={(intensity) => set({ intensity })} /></Field>
+      <Field label="Fall-off">
+        <select className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px]" value={p.falloff} onChange={(e) => set({ falloff: e.target.value as DaylightFalloff })}>
+          {FALLOFFS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </Field>
+      <button className="text-[12px] text-blue-700 hover:underline" onClick={() => setAdv(!adv)}>{adv ? 'Hide' : 'Show'} advanced profile</button>
+      {adv && (
+        <div className="space-y-1.5 rounded-md border border-slate-200 p-2">
+          <p className="text-[11px] text-slate-500">Relative strength along the length, multiplied with the fall-off.</p>
+          {PROFILE_AT.map((l, i) => (
+            <Field key={l} label={`${l}: ${profile[i].toFixed(2)}`}><DSlider value={profile[i]} min={0} max={1.5} step={0.05} onChange={() => undefined} onCommit={(v) => set({ profile: profile.map((x, k) => (k === i ? v : x)) })} /></Field>
+          ))}
+          <Button size="sm" variant="secondary" onClick={() => set({ profile: undefined })}>Reset profile</Button>
+        </div>
+      )}
+      <Button size="sm" variant="secondary" onClick={() => update(obj.id, { window: { ...obj.window!, daylight: undefined } })}>Reset to default light spread</Button>
+    </Section>
+  )
 }

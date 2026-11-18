@@ -27,3 +27,21 @@ dist-ssr
 server/.token
 # downloaded person-detection model (see npm run fetch-model)
 public/models/
+
+# environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# build and tool caches
+*.tsbuildinfo
+.vite/
+coverage/
+.eslintcache
+.npm/
+
+# OS junk
+Thumbs.db
+Desktop.ini

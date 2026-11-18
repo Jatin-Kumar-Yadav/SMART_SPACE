@@ -100,7 +100,7 @@ type Placement = PlaceOk | { ok: false; reason: string }
 const I2C_ADDR: Partial<Record<PartType, number[]>> = { bh1750: [0x23, 0x5c], bme280: [0x76, 0x77] }
 
 /** Fit `reqs` on one controller, adding expanders only when they are technically needed. */
-export function place(family: Controller['family'], reqs: Requirement[]): Placement {
+export function place(family: Controller['family'], reqs: Requirement[], allowExpanders = true): Placement {
   const board = BOARDS[family]
   const wifiOn = board.hasWifi
   const slots: Slot[] = []
@@ -165,9 +165,10 @@ export function place(family: Controller['family'], reqs: Requirement[]): Placem
   }
 
   // ── expanders ──
-  const canExpand = family !== 'uno'
-  if ((pwmOverflow.length || adcOverflow) && !canExpand) {
-    return { ok: false, reason: pwmOverflow.length ? `out of PWM pins (an Uno has 6) and it cannot take expanders` : 'out of analog inputs on an Uno' }
+  const canExpand = family !== 'uno' && allowExpanders
+  const adcExpandOk = canExpand || (family === 'rpi' && adcOverflow > 0) // a Pi has no ADC at all: the ADS1115 is a necessity, not a way to scale
+  if ((pwmOverflow.length && !canExpand) || (adcOverflow && !adcExpandOk)) {
+    return { ok: false, reason: pwmOverflow.length ? `out of PWM pins (${family === 'uno' ? 'an Uno has 6' : `${family === 'esp32' ? 'an ESP32' : 'this board'} has ${pwmGpio}`}) and expanders are not used` : 'out of analog inputs and expanders are not used' }
   }
   let pcaCount = 0
   if (pwmOverflow.length) {
@@ -192,7 +193,7 @@ export function place(family: Controller['family'], reqs: Requirement[]): Placem
     if (!conflict) {
       for (const [t, rs] of counts) rs.forEach((r, i) => { addr[r.part.id] = I2C_ADDR[t]![i] })
     } else {
-      if (!canExpand) return { ok: false, reason: 'two identical I²C sensors share an address and an Uno setup here does not use a multiplexer' }
+      if (!canExpand) return { ok: false, reason: 'two identical I²C sensors would share an address and no multiplexer is used' }
       if (i2cSensors.length > 8) return { ok: false, reason: `${i2cSensors.length} I²C sensors do not fit behind one TCA9548A (8 channels)` }
       expanders.push({ type: 'tca9548a', addr: PARTS.tca9548a.i2c![0] })
       i2cSensors.forEach((r, i) => { mux[r.part.id] = i; addr[r.part.id] = I2C_ADDR[r.part.type]![0] })
@@ -220,7 +221,7 @@ export function place(family: Controller['family'], reqs: Requirement[]): Placem
 
 // ───────────────────────── 3. distribute over N controllers ─────────────────────────
 
-function distribute(family: Controller['family'], reqs: Requirement[], n: number): { ok: true; groups: Requirement[][] } | { ok: false; reason: string } {
+function distribute(family: Controller['family'], reqs: Requirement[], n: number, allowExpanders: boolean): { ok: true; groups: Requirement[][] } | { ok: false; reason: string } {
   const bins: Requirement[][] = Array.from({ length: n }, () => [])
   const byGroup = new Map<number, Requirement[]>()
   for (const r of reqs) byGroup.set(r.group, [...(byGroup.get(r.group) ?? []), r])
@@ -228,7 +229,7 @@ function distribute(family: Controller['family'], reqs: Requirement[], n: number
   let lastReason = ''
   const fitInto = (items: Requirement[]) => {
     for (const b of bins) {
-      const t = place(family, [...b, ...items])
+      const t = place(family, [...b, ...items], allowExpanders)
       if (t.ok) { b.push(...items); return true }
       lastReason = t.reason
     }
@@ -258,7 +259,7 @@ export function buildPlan(space: Space, cfg: HardwareConfig): HardwarePlan {
   let chosen: Requirement[][] | null = null
   let whyNot = ''
   for (let n = 1; n <= MAX_CONTROLLERS; n++) {
-    const d = distribute(family, draft.reqs, n)
+    const d = distribute(family, draft.reqs, n, cfg.scaling === 'expanders')
     if (d.ok) {
       chosen = d.groups.filter((g) => g.length)
       if (n > 1) reasons.push(`One ${FAMILY_NAME[family]} is not enough: ${whyNot}.`)
@@ -271,7 +272,7 @@ export function buildPlan(space: Space, cfg: HardwareConfig): HardwarePlan {
     return { family, controllers: [], parts: draft.parts, pins: [], channels: {}, nets: [], map: [], bom: [], supplies: [], hwIdByObject: draft.hwIdByObject, reasons, issues }
   }
 
-  const controllers: Controller[] = chosen.map((_, i) => ({ id: `${family}-${LABEL(i)}`, family, label: `${FAMILY_NAME[family]} ${LABEL(i).toUpperCase()}` }))
+  const controllers: Controller[] = chosen.map((_, i) => ({ id: `${family}-${LABEL(i)}`, family, label: `${FAMILY_NAME[family]} ${LABEL(i).toUpperCase()}`, role: chosen!.length === 1 ? 'standalone' as const : i === 0 ? 'master' as const : 'node' as const }))
   const parts: PlanPart[] = []
   const pins: PinUse[] = []
   const channels: Record<string, Channel> = {}
@@ -290,7 +291,7 @@ export function buildPlan(space: Space, cfg: HardwareConfig): HardwarePlan {
 
   chosen.forEach((reqs, ci) => {
     const ctrl = controllers[ci]
-    const pl = place(family, reqs)
+    const pl = place(family, reqs, cfg.scaling === 'expanders')
     if (!pl.ok) return // cannot happen: distribute() just verified it
     const gnd = net(`${ctrl.id}:GND`, 'ground', `${ctrl.label} GND`)
     connect(gnd, ctrl.id, 'GND')

@@ -1,4 +1,4 @@
-import { Box, Cpu, PanelLeftClose, PanelLeftOpen, Video } from 'lucide-react'
+import { Box, Cpu, Video } from 'lucide-react'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useLayout, type AppMode } from '@/store/layoutStore'
@@ -15,7 +15,6 @@ const MODES: { id: AppMode; label: string; Icon: typeof Box }[] = [
  */
 export function ModeRail() {
   const mode = useLayout((s) => s.mode)
-  const libraryOpen = useLayout((s) => s.libraryOpen)
   const set = useLayout((s) => s.set)
   return (
     <nav className="flex w-14 shrink-0 flex-col items-center gap-2 border-r border-slate-200 bg-slate-50 py-3" aria-label="Application mode">
@@ -37,17 +36,6 @@ export function ModeRail() {
             </button>
           </Tip>
         ))}
-      </div>
-      <div className="mt-auto">
-        <Tip label={libraryOpen ? 'Hide object library' : 'Show object library'} side="right">
-          <button
-            aria-label={libraryOpen ? 'Hide object library' : 'Show object library'}
-            onClick={() => set({ libraryOpen: !libraryOpen })}
-            className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-          >
-            {libraryOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-          </button>
-        </Tip>
       </div>
     </nav>
   )

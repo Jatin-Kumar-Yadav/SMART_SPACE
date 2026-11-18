@@ -86,7 +86,7 @@ function awayFromAc(x: number, z: number, acs: [number, number][], L: number, W:
  * Propose measurement points: one zone per cluster of seats. Temperature at breathing height, away
  * from AC outlets; light at the working plane, linked to (but not co-located with) nearby fixtures.
  */
-export function proposeSensors(space: Space, cfg: Pick<HardwareConfig, 'excludedDeviceIds' | 'includePresence'>): SensorPoint[] {
+export function proposeSensors(space: Space, cfg: Pick<HardwareConfig, 'excludedDeviceIds' | 'includePresence'> & { zoneCount?: number }): SensorPoint[] {
   const { length: L, width: W, height: H } = space.dims
   const devs = roomDevices(space, cfg)
   const acs = devs.filter((d) => d.kind === 'ac').map((d) => [d.obj.position[0], d.obj.position[2]] as [number, number])
@@ -94,7 +94,8 @@ export function proposeSensors(space: Space, cfg: Pick<HardwareConfig, 'excluded
   const lights = devs.filter((d) => d.kind === 'light')
   let pts = allSeatSlots(space.objects).map((s) => [s.position[0], s.position[2]] as [number, number])
   if (pts.length === 0) pts = [[L * 0.25, W * 0.25], [L * 0.75, W * 0.25], [L * 0.25, W * 0.75], [L * 0.75, W * 0.75]]
-  const k = clamp(Math.max(acs.length, Math.ceil(fans.length / 3), 1), 1, Math.min(6, pts.length, ZONE_LABELS.length))
+  const wanted = cfg.zoneCount ?? Math.max(acs.length, Math.ceil(fans.length / 3), 1)
+  const k = clamp(wanted, 1, Math.min(ZONE_LABELS.length, pts.length))
   const centres = cluster(pts, k)
   const out: SensorPoint[] = []
   centres.forEach((c, i) => {
@@ -129,6 +130,7 @@ export function defaultHardware(space: Space): HardwareConfig {
     excludedDeviceIds: [],
     pinOverrides: {},
     motorSupplyV: 5,
+    scaling: 'nodes',
   }
 }
 

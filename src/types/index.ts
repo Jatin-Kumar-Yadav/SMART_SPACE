@@ -194,6 +194,30 @@ export interface WindowConfig {
   shading: number
   /** solar heat gain coefficient 0…1 */
   shgc: number
+  /**
+   * Adjustable region the window's daylight reaches (approximate daylight contribution, not ray tracing).
+   * Absent = the original default fall-off, so projects saved before this field existed behave as before.
+   */
+  daylight?: DaylightInfluence
+}
+
+export type DaylightFalloff = 'exp' | 'linear' | 'smooth'
+export interface DaylightInfluence {
+  /** draw the golden region when the window is selected (visualisation only; the parameters always apply) */
+  show: boolean
+  /** how far the light reaches into the room (m) */
+  length: number
+  /** width of the lit strip at the glass (m) */
+  width: number
+  /** extra opening angle of the region, full angle in degrees */
+  spread: number
+  /** rotation away from the window's inward normal, degrees (limited to ±60° so it stays interior-facing) */
+  direction: number
+  /** multiplier on the daylight this window contributes */
+  intensity: number
+  falloff: DaylightFalloff
+  /** advanced: relative strength at 0, 25, 50, 75 and 100 % of the length */
+  profile?: number[]
 }
 
 export interface SceneObject {
@@ -392,6 +416,10 @@ export interface HardwareConfig {
   pinOverrides?: Record<string, string>
   /** voltage of the separate motor supply (V) */
   motorSupplyV?: number
+  /** number of measurement zones (temperature + light sensor pairs); omitted → derived from seats, AC and fans */
+  zoneCount?: number
+  /** how a room that needs more channels than one controller has is built: more controller nodes (default for new setups; every node can be simulated in Wokwi) or PCA9685 / ADS1115 / TCA9548A expanders (omitted on older spaces) */
+  scaling?: 'nodes' | 'expanders'
 }
 
 // ───────────────────────── Space ─────────────────────────

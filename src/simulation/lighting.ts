@@ -1,5 +1,6 @@
 import type { LightDevice, LightingScenario, SceneObject } from '@/types'
 import { clamp } from '@/utils/math'
+import { daylightOf, daylightWeight } from './daylight'
 import { cellAt, segmentBlocked, type SimGrid } from './grid'
 
 /** Height of the horizontal work plane at which illuminance is evaluated. */
@@ -88,6 +89,11 @@ export function windowUnitField(grid: SimGrid, win: SceneObject): Float32Array {
   const nz = Math.cos(win.rotationY)
   const ax = Math.cos(win.rotationY)
   const az = -Math.sin(win.rotationY)
+  // adjustable region: the same function the 3D overlay paints, so what you see is what is simulated
+  const dl = w.daylight ? daylightOf(win) : null
+  const ang = win.rotationY + ((dl?.direction ?? 0) * Math.PI) / 180
+  const rx = Math.sin(ang)
+  const rz = Math.cos(ang)
   for (let iz = 0; iz < grid.nz; iz++) {
     for (let ix = 0; ix < grid.nx; ix++) {
       const cx = (ix + 0.5) * grid.dx
@@ -98,7 +104,11 @@ export function windowUnitField(grid: SimGrid, win: SceneObject): Float32Array {
       if (depth <= 0.05) continue
       const lateral = Math.max(0, Math.abs(dx * ax + dz * az) - win.dims[0] / 2)
       if (grid.barriers.length && segmentBlocked(grid.barriers, win.position[0] + nx * 0.2, win.position[2] + nz * 0.2, cx, cz)) continue
-      out[iz * grid.nx + ix] = K * tau * Math.exp(-depth / 2.2) * Math.exp(-lateral / 3)
+      if (dl) {
+        const along = dx * rx + dz * rz
+        const across = dx * rz - dz * rx
+        out[iz * grid.nx + ix] = K * tau * daylightWeight(dl, along, across)
+      } else out[iz * grid.nx + ix] = K * tau * Math.exp(-depth / 2.2) * Math.exp(-lateral / 3)
     }
   }
   return out

@@ -12,7 +12,7 @@ export function BottomLog() {
   const controllers = useLive((s) => s.controllers)
   const plan = useIot((s) => s.plan)
   const mode = useEditor((s) => s.space?.hardware?.runMode ?? 'simulation')
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => { if (open) end.current?.scrollIntoView({ block: 'end' }) }, [log.length, open])
   const online = Object.values(controllers).filter((c) => c.online).length
