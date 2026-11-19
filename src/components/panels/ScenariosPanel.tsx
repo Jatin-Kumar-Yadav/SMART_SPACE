@@ -33,7 +33,7 @@ export function ScenariosPanel() {
       </Section>
       <Section title={`Active: ${active.name}`}>
         <div className="flex flex-wrap gap-1.5">
-          <Button variant="default" size="sm" onClick={() => { simStop(); simStart() }}><Play size={12} />Run scenario</Button>
+          <Button variant="default" size="sm" onClick={simStart}><Play size={12} />Run scenario</Button>
           <Button size="sm" onClick={() => add(undefined, active.id)}><Copy size={12} />Duplicate</Button>
           <Button size="sm" onClick={() => { capture(); toast('Current device and window states saved into this scenario', 'success') }}><Save size={12} />Save device states</Button>
           <Button size="sm" variant="danger" onClick={() => remove(active.id)}><Trash2 size={12} />Delete</Button>

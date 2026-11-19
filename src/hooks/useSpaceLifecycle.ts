@@ -44,7 +44,7 @@ export function useAutosaveAndSync() {
     const unsub = useEditor.subscribe((s, prev) => {
       if (!s.space) return
       if (s.space.id !== prev.space?.id) {
-        simInit()
+        simInit(true)
         return
       }
       if (s.revision === prev.revision) return

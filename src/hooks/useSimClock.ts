@@ -1,23 +1,23 @@
 import { useEffect } from 'react'
-import { simTick } from '@/store/simStore'
+import { startSimulationLoop, stopSimulationLoop, useSim } from '@/store/simStore'
 
 /**
- * Drives the environmental simulation from requestAnimationFrame.
- * It used to be ticked by the 3D canvas, which meant the simulation froze whenever the
- * canvas was not mounted (Live Camera / IoT workspaces). The clock now lives here so the
- * three modes keep one continuous simulation.
+ * Ensures the simulation loop lifecycle is synced with the workspace.
+ * The loop implementation itself is managed as a singleton in simStore
+ * to prevent duplicate timers and restarts across component re-renders.
  */
 export function useSimClock() {
+  const status = useSim((s) => s.status)
+
   useEffect(() => {
-    let raf = 0
-    let last = performance.now()
-    const loop = (now: number) => {
-      const dt = Math.max(0, (now - last) / 1000)
-      last = now
-      simTick(dt)
-      raf = requestAnimationFrame(loop)
+    if (status === 'running') {
+      startSimulationLoop()
     }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
+  }, [status])
+
+  useEffect(() => {
+    return () => {
+      stopSimulationLoop()
+    }
   }, [])
 }

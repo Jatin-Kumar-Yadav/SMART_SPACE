@@ -41,8 +41,45 @@ let engineSpaceId: string | null = null
 let syncTimer: ReturnType<typeof setTimeout> | null = null
 let lastPublish = 0
 let comfortToastShown = false
+let rafId: number | null = null
+let lastTickTime = 0
 
 export const getEngine = () => engine
+
+const scheduleFrame = typeof requestAnimationFrame !== 'undefined'
+  ? requestAnimationFrame
+  : (cb: (t: number) => void) => setTimeout(() => cb(performance.now()), 16) as unknown as number
+
+const cancelFrame = typeof cancelAnimationFrame !== 'undefined'
+  ? cancelAnimationFrame
+  : (id: number) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>)
+
+export function startSimulationLoop() {
+  if (rafId !== null) return
+  lastTickTime = performance.now()
+  const loop = (now: number) => {
+    if (useSim.getState().status !== 'running') {
+      rafId = null
+      return
+    }
+    const dt = Math.max(0, (now - lastTickTime) / 1000)
+    lastTickTime = now
+    simTick(dt)
+    if (useSim.getState().status === 'running') {
+      rafId = scheduleFrame(loop)
+    } else {
+      rafId = null
+    }
+  }
+  rafId = scheduleFrame(loop)
+}
+
+export function stopSimulationLoop() {
+  if (rafId !== null) {
+    cancelFrame(rafId)
+    rafId = null
+  }
+}
 
 function publish(force = false) {
   if (!engine) return
@@ -54,14 +91,19 @@ function publish(force = false) {
 }
 
 /** (Re)create the engine for the open space. Called when a space is opened. */
-export function simInit() {
+export function simInit(force = false) {
   const space = useEditor.getState().space
   if (!space) {
+    stopSimulationLoop()
     engine = null
     engineSpaceId = null
     useSim.setState({ snapshot: null, status: 'stopped' })
     return
   }
+  if (!force && engine && engineSpaceId === space.id) {
+    return
+  }
+  stopSimulationLoop()
   engine = new SimEngine(space, activeScenario(space))
   engineSpaceId = space.id
   comfortToastShown = false
@@ -76,7 +118,7 @@ export function simSync() {
     syncTimer = null
     const space = useEditor.getState().space
     if (!space) return
-    if (!engine || engineSpaceId !== space.id) return simInit()
+    if (!engine || engineSpaceId !== space.id) return simInit(true)
     try {
       engine.rebuild(space, activeScenario(space))
     } catch (e) {
@@ -94,23 +136,33 @@ export function simSetDevice(id: string, patch: DevicePatch) {
 }
 
 export function simStart() {
-  if (!engine) simInit()
   const { status } = useSim.getState()
-  if (status === 'stopped') {
-    const space = useEditor.getState().space
-    if (space) engine!.rebuild(space, activeScenario(space))
-    engine!.reset()
-    comfortToastShown = false
-    useSim.setState({ comfortReached: false })
-  }
+  if (status === 'running') return
+  if (!engine) simInit()
+  if (!engine) return
+
   useSim.setState({ status: 'running' })
+  startSimulationLoop()
   publish(true)
 }
 
-export const simPause = () => useSim.setState({ status: 'paused' })
-export const simResume = () => useSim.setState({ status: 'running' })
+export function simPause() {
+  stopSimulationLoop()
+  useSim.setState({ status: 'paused' })
+}
+
+export function simResume() {
+  const { status } = useSim.getState()
+  if (status === 'running') return
+  if (!engine) simInit()
+  if (!engine) return
+  useSim.setState({ status: 'running' })
+  startSimulationLoop()
+  publish(true)
+}
 
 export function simStop() {
+  stopSimulationLoop()
   engine?.reset()
   comfortToastShown = false
   useSim.setState({ status: 'stopped', comfortReached: false })
@@ -118,6 +170,10 @@ export function simStop() {
 }
 
 export function simReset() {
+  const space = useEditor.getState().space
+  if (space && engine) {
+    engine.rebuild(space, activeScenario(space))
+  }
   engine?.reset()
   comfortToastShown = false
   useSim.setState({ comfortReached: false })
@@ -156,7 +212,7 @@ export function simTick(dt: number) {
     remaining -= slice
   }
   if (engine.time >= MAX_SIM_SECONDS) {
-    useSim.setState({ status: 'paused' })
+    simPause()
     toast('Simulation paused at the 6-hour limit', 'info')
   }
   checkComfort()

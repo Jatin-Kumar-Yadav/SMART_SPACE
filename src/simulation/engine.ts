@@ -238,10 +238,17 @@ export class SimEngine {
   rebuild(space: Space, scenario: Scenario) {
     const old = this.grid
     const oldT = this.T
+    const oldTime = this.time
+    const oldEnergy = this.energyJ
+    const oldHistory = this.history
     const initialChanged = scenario.initialTempC !== this.scenario.initialTempC
+    const isRunningOrPaused = oldTime > 0
     this.build(space, scenario)
-    if (old.nx === this.grid.nx && old.nz === this.grid.nz && !initialChanged) {
+    if (old.nx === this.grid.nx && old.nz === this.grid.nz && (!initialChanged || isRunningOrPaused)) {
       this.T = oldT
+      this.time = oldTime
+      this.energyJ = oldEnergy
+      this.history = oldHistory
       this.refreshDynamics()
     } else {
       this.reset()
