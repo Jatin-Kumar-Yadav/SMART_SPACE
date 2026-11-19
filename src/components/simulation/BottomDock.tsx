@@ -7,22 +7,21 @@ import { setDevice } from '@/store/actions'
 import { activeScenario, useEditor } from '@/store/editorStore'
 import { useLayout, type BottomTab } from '@/store/layoutStore'
 import { useSim } from '@/store/simStore'
-import { CoolingTab } from './CoolingTab'
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'charts', label: 'Charts' },
   { id: 'devices', label: 'Devices' },
   { id: 'zones', label: 'Zones' },
-  { id: 'cooling', label: 'Cooling' },
 ]
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'ok' | 'warn' }) {
+  const isLong = value.length > 8
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={cn('text-lg font-semibold leading-tight text-slate-900', tone === 'ok' && 'text-emerald-700', tone === 'warn' && 'text-amber-700')}>{value}</div>
-      {sub && <div className="text-[10.5px] text-slate-400">{sub}</div>}
+    <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <div className="truncate text-[10px] uppercase tracking-wide text-slate-500" title={label}>{label}</div>
+      <div className={cn('truncate font-semibold leading-tight text-slate-900', isLong ? 'text-[14px]' : 'text-lg', tone === 'ok' && 'text-emerald-700', tone === 'warn' && 'text-amber-700')} title={value}>{value}</div>
+      {sub && <div className="truncate text-[10.5px] text-slate-400" title={sub}>{sub}</div>}
     </div>
   )
 }
@@ -38,7 +37,7 @@ function Overview() {
   const occZones = snap.zoneStats.filter((z) => z.occupants > 0)
   const comfortableOccZones = occZones.filter((z) => z.comfortable).length
   return (
-    <div className="grid grid-cols-2 gap-2 overflow-auto sm:grid-cols-4 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2 overflow-auto sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
       <Tile label="Room temperature" value={`${st.avgT.toFixed(1)} °C`} sub={`min ${st.minT.toFixed(1)} · max ${st.maxT.toFixed(1)}`} tone={st.comfort.averageTargetReached ? 'ok' : undefined} />
       <Tile label="Target" value={`${sc.targetTempC} °C`} sub={`±${sc.sim.toleranceC} °C · outside ${sc.outsideTempC} °C`} />
       <Tile label="Occupancy" value={`${st.occupants}`} sub={`${Math.round(st.occupantHeatW)} W body heat`} />
@@ -47,7 +46,6 @@ function Overview() {
       <Tile label="Active AC units" value={`${acs.filter((f) => f.level > 0).length} / ${acs.length}`} sub={`${(st.coolingW / 1000).toFixed(1)} kW cooling · ${(st.acElectricW / 1000).toFixed(1)} kW elec.`} />
       <Tile label="Energy used" value={`${st.energyKWh.toFixed(2)} kWh`} sub={`lights ${Math.round(st.lightW)} W`} />
       <Tile label="Est. time to comfort" value={est.toComfortSeconds != null ? formatDuration(est.toComfortSeconds) : '—'} sub={est.toComfortNote} />
-      <Tile label="Heat gains" value={`${(st.gainW / 1000).toFixed(1)} kW`} sub="people, lights, solar, envelope" />
       <Tile
         label="Occupied zone comfort"
         value={
@@ -64,8 +62,6 @@ function Overview() {
             : `spread ${st.comfort.spread.toFixed(1)} °C`
         }
       />
-      <Tile label="Uniformity" value={st.comfort.uniform ? 'Uniform' : 'Uneven'} tone={st.comfort.uniform ? 'ok' : 'warn'} />
-      <Tile label="Sim time" value={formatDuration(st.time)} sub={`clock ${Math.floor(st.timeOfDay)}:${String(Math.round((st.timeOfDay % 1) * 60)).padStart(2, '0')}`} />
     </div>
   )
 }
@@ -115,6 +111,8 @@ function Devices() {
 
 function Zones() {
   const snap = useSim((s) => s.snapshot)
+  const selectedZoneId = useSim((s) => s.selectedZoneId)
+  const setSelectedZoneId = useSim((s) => s.setSelectedZoneId)
   const objects = useEditor((s) => s.space!.objects)
   const set = useEditor((s) => s.set)
   if (!snap) return null
@@ -129,16 +127,43 @@ function Zones() {
       </div>
       <div className="overflow-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-[12px]">
-          <thead className="sticky top-0 bg-slate-50 text-left text-[11px] text-slate-500"><tr>{['Zone', 'Area', 'People', 'Avg °C', 'Feels °C', 'Lux', 'Coverage', 'Devices', 'Comfort'].map((h) => <th key={h} className="px-2 py-1.5 font-medium">{h}</th>)}</tr></thead>
+          <thead className="sticky top-0 bg-slate-50 text-left text-[11px] text-slate-500">
+            <tr>
+              {['Zone', 'Parent AC', 'Fan Subzone', 'Area', 'People', 'Avg °C', 'Feels °C', 'Lux', 'Coverage', 'Devices in Zone', 'Comfort'].map((h) => (
+                <th key={h} className="px-2 py-1.5 font-medium">{h}</th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {snap.zones.map((z) => {
               const s = snap.zoneStats.find((x) => x.id === z.id)
+              const isSelected = selectedZoneId === z.id
               return (
-                <tr key={z.id} className="border-t border-slate-100">
-                  <td className="px-2 py-1 font-medium">Zone {z.id + 1}</td><td className="px-2">{z.area.toFixed(0)} m²</td><td className="px-2">{s?.occupants ?? 0}</td>
-                  <td className="px-2 tabular-nums">{s?.avgT.toFixed(1) ?? '—'}</td><td className="px-2 tabular-nums">{s?.avgPerceivedT.toFixed(1) ?? '—'}</td><td className="px-2 tabular-nums">{s ? Math.round(s.avgLux) : '—'}</td>
-                  <td className="px-2"><span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase', z.coverage === 'cooled' ? 'bg-emerald-50 text-emerald-700' : z.coverage === 'fan-only' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700')}>{z.coverage}</span></td>
-                  <td className="max-w-[320px] truncate px-2 text-slate-500" title={[...z.acIds, ...z.fanIds, ...z.lightIds].map(name).join(', ')}>{z.acIds.length} AC · {z.fanIds.length} fan · {z.lightIds.length} light</td>
+                <tr
+                  key={z.id}
+                  onClick={() => setSelectedZoneId(isSelected ? null : z.id)}
+                  className={cn(
+                    'border-t border-slate-100 cursor-pointer transition-colors',
+                    isSelected ? 'bg-blue-50/80 font-medium' : 'hover:bg-slate-50'
+                  )}
+                  title="Click to view complete zone details"
+                >
+                  <td className="px-2 py-1 font-medium text-slate-900">{z.label ?? `Zone ${z.id}`}</td>
+                  <td className="px-2 text-slate-600">{z.acName ?? (z.acZoneId ? `AC Zone ${z.acZoneId}` : '—')}</td>
+                  <td className="px-2 text-slate-600">{z.fanName ?? (z.fanSubzoneId ? `Fan Subzone ${z.fanSubzoneId}` : '—')}</td>
+                  <td className="px-2">{z.area.toFixed(0)} m²</td>
+                  <td className="px-2">{s?.occupants ?? 0}</td>
+                  <td className="px-2 tabular-nums">{s?.avgT.toFixed(1) ?? '—'}</td>
+                  <td className="px-2 tabular-nums">{s?.avgPerceivedT.toFixed(1) ?? '—'}</td>
+                  <td className="px-2 tabular-nums">{s ? Math.round(s.avgLux) : '—'}</td>
+                  <td className="px-2">
+                    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase', z.coverage === 'cooled' ? 'bg-emerald-50 text-emerald-700' : z.coverage === 'fan-only' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700')}>
+                      {z.coverage}
+                    </span>
+                  </td>
+                  <td className="max-w-[300px] truncate px-2 text-slate-500" title={[...(z.acId ? [z.acId] : []), ...(z.fanId ? [z.fanId] : []), ...z.lightIds, ...(z.sensorIds ?? [])].map(name).join(', ')}>
+                    {z.acIds.length} AC · {z.fanIds.length} fan · {z.lightIds.length} light{z.sensorIds?.length ? ` · ${z.sensorIds.length} sensor` : ''}
+                  </td>
                   <td className="px-2">{s && s.occupants > 0 ? (s.comfortable ? '✓' : '✗') : '—'}</td>
                 </tr>
               )
@@ -146,7 +171,6 @@ function Zones() {
           </tbody>
         </table>
       </div>
-      {snap.stats.warnings.map((w) => <div key={w} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[12px] text-amber-900">{w}</div>)}
     </div>
   )
 }
@@ -177,7 +201,6 @@ export function BottomDock() {
           {tab === 'charts' && <SimCharts />}
           {tab === 'devices' && <Devices />}
           {tab === 'zones' && <Zones />}
-          {tab === 'cooling' && <CoolingTab />}
         </div>
       )}
     </div>

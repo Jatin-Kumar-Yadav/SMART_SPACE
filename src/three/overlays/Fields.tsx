@@ -29,9 +29,28 @@ function fillTexture(data: Uint8Array, snap: SimSnapshot, layer: string, target:
           a = 0.7
         }
       } else if (layer === 'zones') {
-        const z = snap.zoneIdByCell[i]
-        c = ZONE_PALETTE[Math.abs(z) % ZONE_PALETTE.length]
-        a = 0.3
+        const zid = snap.zoneIdByCell[i]
+        const zi = snap.zones.find((x) => x.id === zid)
+        if (zi) {
+          if (zi.acZoneId != null) {
+            // Parent AC zone defines the primary hue family
+            const baseCol = ZONE_PALETTE[(zi.acZoneId - 1) % ZONE_PALETTE.length]
+            // Fan subzones have subtle variations in brightness
+            const sub = zi.fanSubzoneId ?? 1
+            const factor = 0.82 + ((sub * 43) % 36) / 100
+            c = [
+              Math.min(255, Math.round(baseCol[0] * factor)),
+              Math.min(255, Math.round(baseCol[1] * factor)),
+              Math.min(255, Math.round(baseCol[2] * factor)),
+            ]
+          } else {
+            c = ZONE_PALETTE[Math.abs(zid - 1) % ZONE_PALETTE.length]
+          }
+          a = 0.32
+        } else {
+          c = [148, 163, 184]
+          a = 0.15
+        }
       }
       data[k] = c[0]
       data[k + 1] = c[1]
@@ -77,38 +96,118 @@ export function ZoneLayer() {
   const layer = useEditor((s) => s.layer)
   const dims = useEditor((s) => s.space!.dims)
   const snap = useSim((s) => s.snapshot)
-  const geo = useMemo(() => {
-    if (!snap || layer !== 'zones') return null
-    const { nx, nz, zoneIdByCell: z } = snap
+  const selectedZoneId = useSim((s) => s.selectedZoneId)
+  const setSelectedZoneId = useSim((s) => s.setSelectedZoneId)
+
+  const { primaryGeo, subzoneGeo } = useMemo(() => {
+    if (!snap || layer !== 'zones') return { primaryGeo: null, subzoneGeo: null }
+    const { nx, nz, zoneIdByCell: z, zones } = snap
+    const zoneMap = new Map(zones.map((x) => [x.id, x]))
     const dx = dims.length / nx
     const dz = dims.width / nz
-    const pts: number[] = []
+    const primaryPts: number[] = []
+    const subzonePts: number[] = []
+
+    const addEdge = (isPrimary: boolean, x1: number, z1: number, x2: number, z2: number) => {
+      const target = isPrimary ? primaryPts : subzonePts
+      const y = isPrimary ? 0.035 : 0.03
+      target.push(x1, y, z1, x2, y, z2)
+    }
+
     for (let iz = 0; iz < nz; iz++) {
       for (let ix = 0; ix < nx; ix++) {
         const i = iz * nx + ix
-        if (ix + 1 < nx && z[i] !== z[i + 1]) pts.push((ix + 1) * dx, 0.03, iz * dz, (ix + 1) * dx, 0.03, (iz + 1) * dz)
-        if (iz + 1 < nz && z[i] !== z[i + nx]) pts.push(ix * dx, 0.03, (iz + 1) * dz, (ix + 1) * dx, 0.03, (iz + 1) * dz)
+        const id1 = z[i]
+        const z1 = zoneMap.get(id1)
+
+        // East neighbor
+        if (ix + 1 < nx) {
+          const id2 = z[i + 1]
+          if (id1 !== id2) {
+            const z2 = zoneMap.get(id2)
+            const isPrimary = (z1?.acZoneId ?? null) !== (z2?.acZoneId ?? null)
+            addEdge(isPrimary, (ix + 1) * dx, iz * dz, (ix + 1) * dx, (iz + 1) * dz)
+          }
+        }
+
+        // South neighbor
+        if (iz + 1 < nz) {
+          const id2 = z[i + nx]
+          if (id1 !== id2) {
+            const z2 = zoneMap.get(id2)
+            const isPrimary = (z1?.acZoneId ?? null) !== (z2?.acZoneId ?? null)
+            addEdge(isPrimary, ix * dx, (iz + 1) * dz, (ix + 1) * dx, (iz + 1) * dz)
+          }
+        }
       }
     }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
-    return g
+
+    const gPrimary = new THREE.BufferGeometry()
+    gPrimary.setAttribute('position', new THREE.Float32BufferAttribute(primaryPts, 3))
+
+    const gSubzone = new THREE.BufferGeometry()
+    gSubzone.setAttribute('position', new THREE.Float32BufferAttribute(subzonePts, 3))
+
+    return { primaryGeo: gPrimary, subzoneGeo: gSubzone }
   }, [snap, layer, dims.length, dims.width])
-  useEffect(() => () => geo?.dispose(), [geo])
-  if (layer !== 'zones' || !snap || !geo) return null
+
+  useEffect(() => () => {
+    primaryGeo?.dispose()
+    subzoneGeo?.dispose()
+  }, [primaryGeo, subzoneGeo])
+
+  if (layer !== 'zones' || !snap || (!primaryGeo && !subzoneGeo)) return null
+
   return (
     <group>
-      <lineSegments geometry={geo} renderOrder={3}>
-        <lineBasicMaterial color="#0f172a" transparent opacity={0.75} depthTest={false} />
-      </lineSegments>
+      {/* Primary AC Zone Boundaries (Bold solid lines) */}
+      {primaryGeo && (
+        <lineSegments geometry={primaryGeo} renderOrder={4}>
+          <lineBasicMaterial color="#020617" transparent opacity={0.92} depthTest={false} />
+        </lineSegments>
+      )}
+
+      {/* Fan Subzone Boundaries (Lighter distinguishing lines) */}
+      {subzoneGeo && (
+        <lineSegments geometry={subzoneGeo} renderOrder={3}>
+          <lineBasicMaterial color="#475569" transparent opacity={0.55} depthTest={false} />
+        </lineSegments>
+      )}
+
       {snap.zones.map((zi) => {
         const st = snap.zoneStats.find((s) => s.id === zi.id)
-        const col = ZONE_PALETTE[Math.abs(zi.id) % ZONE_PALETTE.length]
+        const isSelected = zi.id === selectedZoneId
+        const col = zi.acZoneId != null
+          ? ZONE_PALETTE[(zi.acZoneId - 1) % ZONE_PALETTE.length]
+          : ZONE_PALETTE[Math.abs(zi.id - 1) % ZONE_PALETTE.length]
+
+        const titleText = `${zi.label ?? `Zone ${zi.id}`}
+Parent AC: ${zi.acName ?? 'None'}
+Assigned Fan: ${zi.fanName ?? 'None'}
+Lights located in zone: ${zi.lightIds.length}
+Sensors located in zone: ${zi.sensorIds?.length ?? 0}
+Click to view full zone details`
+
         return (
-          <Html key={zi.id} position={[zi.cx, 0.4, zi.cz]} center style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
-            <div className="whitespace-nowrap rounded border bg-white/95 px-1 py-px text-[9px] font-medium leading-tight text-slate-800 shadow-sm" style={{ borderColor: `rgb(${col.join(',')})` }} title={`Zone ${zi.id + 1} · ${zi.coverage} · ${zi.acIds.length} AC, ${zi.fanIds.length} fan, ${zi.lightIds.length} light`}>
-              Z{zi.id + 1}{st ? ` · ${st.occupants}p · ${st.avgT.toFixed(1)}°` : ''}{zi.coverage === 'uncovered' ? ' ⚠' : ''}
-            </div>
+          <Html key={zi.id} position={[zi.cx, 0.45, zi.cz]} center style={{ pointerEvents: 'auto' }} zIndexRange={[20, 0]}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedZoneId(isSelected ? null : zi.id)
+              }}
+              className={`cursor-pointer whitespace-nowrap rounded border px-2 py-0.5 text-[10px] font-semibold leading-tight shadow-md transition-all hover:scale-105 active:scale-95 ${
+                isSelected
+                  ? 'bg-slate-900 text-white ring-2 ring-blue-500 ring-offset-1'
+                  : 'bg-white/95 text-slate-800 hover:bg-slate-50'
+              }`}
+              style={{ borderColor: `rgb(${col.join(',')})` }}
+              title={titleText}
+            >
+              <span>{zi.label ?? `Zone ${zi.id}`}</span>
+              {st && <span className="ml-1 font-normal opacity-75">· {st.occupants}p · {st.avgT.toFixed(1)}°</span>}
+              {zi.coverage === 'uncovered' && <span className="ml-0.5 text-amber-500 font-bold">⚠</span>}
+            </button>
           </Html>
         )
       })}

@@ -15,6 +15,7 @@ import {
   LedArtwork,
   PirArtwork,
   ResistorArtwork,
+  ServoArtwork,
   UnoArtwork,
 } from './WokwiComponents'
 
@@ -52,9 +53,9 @@ const SCHEMATIC_LEGEND: [string, string][] = [
 const WOKWI_LEGEND: [string, string][] = [
   ['Power (3.3V / 5V)', '#dc2626'],
   ['Ground (GND)', '#0f172a'],
-  ['AC Output', '#0284c7'],
-  ['Fan Output', '#16a34a'],
-  ['Light Output', '#ca8a04'],
+  ['AC Servo Output', '#0284c7'],
+  ['Fan Servo Output', '#16a34a'],
+  ['Light Output (LED)', '#ca8a04'],
   ['Temp Sensor (DHT22)', '#2563eb'],
   ['Light Sensor (LDR)', '#d97706'],
   ['PIR Motion', '#9333ea'],
@@ -512,6 +513,8 @@ function renderWokwiPart(part: WokwiPart, selected: boolean) {
       return <ResistorArtwork attrs={part.attrs} selected={selected} />
     case 'wokwi-led':
       return <LedArtwork attrs={part.attrs} selected={selected} />
+    case 'wokwi-servo':
+      return <ServoArtwork attrs={part.attrs} id={part.id} selected={selected} />
     default:
       return (
         <g>

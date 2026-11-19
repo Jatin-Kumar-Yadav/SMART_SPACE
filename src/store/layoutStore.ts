@@ -5,7 +5,7 @@ export type LeftTab = 'furniture' | 'architecture' | 'environment' | 'materials'
 export type RightTab = 'properties' | 'space' | 'people' | 'simulate' | 'scenarios'
 /** The three connected workspaces. They share one project (the editor store). */
 export type AppMode = 'simulation' | 'camera' | 'iot'
-export type BottomTab = 'overview' | 'charts' | 'devices' | 'zones' | 'cooling'
+export type BottomTab = 'overview' | 'charts' | 'devices' | 'zones'
 
 interface LayoutState {
   /** which workspace is shown in the centre */

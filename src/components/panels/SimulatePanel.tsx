@@ -3,7 +3,7 @@ import { SimControls } from '@/components/simulation/SimControls'
 import { LIGHTING_PRESETS } from '@/simulation/scenario'
 import { activeScenario, useEditor } from '@/store/editorStore'
 import { useSim } from '@/store/simStore'
-import type { LightingPreset, Resolution } from '@/types'
+import type { LightingPreset } from '@/types'
 
 function Badge({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
   return (
@@ -54,23 +54,8 @@ export function SimulatePanel() {
         <Toggle checked={sc.autoLighting} onChange={(autoLighting) => update(sc.id, { autoLighting })} label="Automatic lighting control" />
         {st && <div className="text-[11px] text-slate-500">Outdoor ≈ {Math.round(st.outdoorLux).toLocaleString()} lx · indoor average {Math.round(st.avgLux)} lx</div>}
       </Section>
-      <Section title="Thermal model (advanced)">
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Thermal mass ×air" hint="Ceff = multiple of air-only capacity"><NumberInput value={sim.thermalMassMultiplier} step={0.5} min={1} max={50} onCommit={(thermalMassMultiplier) => setSim({ thermalMassMultiplier })} /></Field>
-          <Field label="Ceff override (J/K)"><NumberInput value={sim.ceffOverride ?? 0} step={100000} min={0} digits={0} onCommit={(v) => setSim({ ceffOverride: v > 0 ? v : undefined })} /></Field>
-          <Field label="Envelope U (W/m²K)"><NumberInput value={sim.envelopeU} step={0.1} min={0} max={5} onCommit={(envelopeU) => setSim({ envelopeU })} /></Field>
-          <Field label="Equipment (W)"><NumberInput value={sim.equipmentW} step={100} min={0} digits={0} onCommit={(equipmentW) => setSim({ equipmentW })} /></Field>
-          <Field label="Air density (kg/m³)"><NumberInput value={sim.airDensity} step={0.05} min={0.8} max={1.4} onCommit={(airDensity) => setSim({ airDensity })} /></Field>
-          <Field label="Grid resolution"><SelectBox<Resolution> value={sim.resolution} onChange={(resolution) => setSim({ resolution })} options={[{ value: 'coarse', label: 'Coarse' }, { value: 'standard', label: 'Standard' }, { value: 'fine', label: 'Fine' }]} /></Field>
-        </div>
-        <Toggle checked={sim.educationalAcOffset} onChange={(educationalAcOffset) => setSim({ educationalAcOffset })} label="Educational mode: show AC offsets as perceived cooling" />
-        <p className="text-[11px] leading-snug text-slate-400">Air-only capacity underestimates the real load; walls, floor and furniture store heat too, hence the thermal-mass multiplier.</p>
-      </Section>
-      {st && st.warnings.length > 0 && (
-        <Section title="Warnings">
-          {st.warnings.map((w) => <div key={w} className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900">{w}</div>)}
-        </Section>
-      )}
+
+
     </>
   )
 }

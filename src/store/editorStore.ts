@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { CATALOG, createObject } from '@/objects/catalog'
 import { placementIssue } from '@/objects/collision'
 import { closestWall, placeOnWall, resizePerimeter, sideOfWall } from '@/objects/spaceFactory'
-import { generateOccupants, syncOccupants } from '@/simulation/occupancy'
+import { allSeatSlots, syncOccupants, totalSeatCapacity } from '@/simulation/occupancy'
 import { applyCameraSeats, switchOccupancySource } from '@/simulation/occupancySource'
 import { captureStates, createScenario, randomIndoorTemp, randomLighting, withHeat } from '@/simulation/scenario'
 import type {
@@ -19,7 +19,7 @@ import type {
   Space,
   Wall,
 } from '@/types'
-import { mulberry32, newId, randomSeed, round } from '@/utils/math'
+import { mulberry32, newId, randInt, randomSeed, round, shuffle } from '@/utils/math'
 import { toast } from './uiStore'
 import type { DevicePatch } from '@/simulation/engine'
 
@@ -476,25 +476,47 @@ export const useEditor = create<EditorState>((set, get) => {
       const s = get().space
       if (!s) return 0
       const sc = activeScenario(s)
-      if (sc.occupancySource === 'camera') {
-        toast('The live camera is the occupancy source. Turn off Live Occupancy Feed to generate people.', 'warning')
+      const capacity = totalSeatCapacity(s.objects)
+      if (capacity === 0) {
+        toast('No seat capacity — add chairs, benches or sofas first', 'warning')
         return 0
       }
       const rng = mulberry32(randomSeed())
-      const occ = generateOccupants(s.objects, sc.occupancy, rng, sc.sim.occupantHeatW)
-      get().updateScenario(sc.id, { occupants: occ })
+      let count: number
+      if (sc.occupancy.mode === 'percentage') {
+        count = Math.min(capacity, Math.max(0, Math.round((sc.occupancy.percentage / 100) * capacity)))
+      } else if (sc.occupancy.mode === 'fixed') {
+        count = Math.min(capacity, Math.max(0, Math.floor(sc.occupancy.fixed)))
+      } else {
+        if (capacity > 1) {
+          const choices = Array.from({ length: capacity }, (_, i) => i + 1).filter((c) => c !== sc.occupants.length)
+          count = choices.length ? choices[Math.floor(rng() * choices.length)] : randInt(rng, 1, capacity)
+        } else {
+          count = 1
+        }
+      }
+      const allSlots = allSeatSlots(s.objects)
+      const occ = shuffle(rng, allSlots)
+        .slice(0, count)
+        .map((slot) => ({
+          id: newId('occ'),
+          seatKey: slot.key,
+          objectId: slot.objectId,
+          slotIndex: slot.index,
+          position: slot.position,
+          facing: slot.facing,
+          activity: 'seated' as const,
+          heatW: sc.sim.occupantHeatW,
+        }))
+      get().updateScenario(sc.id, { occupants: occ, occupancySource: 'random' })
       if (occ.length) toast(`${occ.length} people generated`, 'success')
-      else toast('No seat capacity — add chairs, benches or sofas first', 'warning')
       return occ.length
     },
     clearPeople: () => {
       const s = get().space
       if (!s) return
-      if (activeScenario(s).occupancySource === 'camera') {
-        toast('The live camera is the occupancy source. Turn off Live Occupancy Feed first.', 'warning')
-        return
-      }
-      get().updateScenario(activeScenario(s).id, { occupants: [] })
+      get().updateScenario(activeScenario(s).id, { occupants: [], occupancySource: 'random' })
+      toast('Occupants cleared', 'info')
     },
     setOccupancySource: (src) =>
       get().apply((s) => ({ ...s, scenarios: s.scenarios.map((sc) => (sc.id === s.activeScenarioId ? switchOccupancySource(sc, src) : sc)) }), { transient: true }),

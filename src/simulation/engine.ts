@@ -411,8 +411,17 @@ export class SimEngine {
     }
     this.dtMax = worst > 0 ? Math.max(0.05, SUBSTEP_SAFETY / worst) : 10
 
-    // zones from the CURRENT reach of the devices
-    const z = buildZones(g, acRefs, fanRefs, this.lightCover)
+    // zones generated strictly from ACs and Fans; lights and other devices assigned by coordinates
+    const z = buildZones(
+      g,
+      this.acs,
+      this.fans,
+      this.lights,
+      this.objs,
+      this.space.hardware?.sensors ?? [],
+      acRefs,
+      fanRefs,
+    )
     this.zones = z.zones
     this.zoneIdByCell = z.zoneIdByCell
     this.coverage = analyseCoverage(g, this.occupants, z.zoneIdByCell, acRefs, fanRefs, this.lightCover)

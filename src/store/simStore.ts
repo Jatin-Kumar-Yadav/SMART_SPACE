@@ -21,7 +21,9 @@ interface SimState {
   snapshot: SimSnapshot | null
   /** true once the comfort criterion has been reached during the current run */
   comfortReached: boolean
+  selectedZoneId: number | null
   setSpeed: (n: number) => void
+  setSelectedZoneId: (id: number | null) => void
 }
 
 export const useSim = create<SimState>((set) => ({
@@ -29,7 +31,9 @@ export const useSim = create<SimState>((set) => ({
   speed: 5,
   snapshot: null,
   comfortReached: false,
+  selectedZoneId: null,
   setSpeed: (speed) => set({ speed }),
+  setSelectedZoneId: (selectedZoneId) => set({ selectedZoneId }),
 }))
 
 let engine: SimEngine | null = null

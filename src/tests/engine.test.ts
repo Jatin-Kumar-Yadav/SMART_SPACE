@@ -167,7 +167,7 @@ describe('coverage & zones', () => {
     expect(byId.get(occ(far).id)!.status).toBe('uncovered')
     expect(snap.coverage).toHaveLength(2)
     expect(snap.stats.warnings.some((w) => w.includes('underserved'))).toBe(true)
-    expect(snap.zones.some((z) => z.coverage === 'uncovered')).toBe(true)
+    expect(snap.coverage.some((c) => c.status === 'uncovered')).toBe(true)
     expect(snap.zones.some((z) => z.coverage === 'cooled')).toBe(true)
   })
 

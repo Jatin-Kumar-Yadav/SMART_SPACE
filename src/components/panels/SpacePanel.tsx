@@ -56,7 +56,6 @@ export function SpacePanel() {
       <Section title="Space">
         <Field label="Name"><TextInput value={space.name} maxLength={60} onCommit={(v) => v.trim() && rename(v.trim())} /></Field>
         <Field label="Type"><SelectBox<SpaceType> value={space.type} onChange={(type) => apply((s) => ({ ...s, type }))} options={SPACE_TYPES} /></Field>
-        <Field label="Units"><SelectBox<LengthUnit> value={u} onChange={(unit) => apply((s) => ({ ...s, unit }))} options={UNITS} /></Field>
       </Section>
       <Section title={`Dimensions (${u})`}>
         <div className="grid grid-cols-3 gap-2">

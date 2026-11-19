@@ -20,6 +20,8 @@ export function getPartDims(type: string): { w: number; h: number } {
       return { w: 50, h: 16 }
     case 'wokwi-led':
       return { w: 22, h: 34 }
+    case 'wokwi-servo':
+      return { w: 90, h: 56 }
     default:
       return { w: 60, h: 40 }
   }
@@ -230,6 +232,31 @@ export function getPinOffset(type: string, pin: string): { x: number; y: number;
     if (pin === 'A' || pin === 'a' || pin === 'ANODE') return { x: 7, y: 32, side: 'b' }
     if (pin === 'C' || pin === 'c' || pin === 'CATHODE') return { x: 15, y: 32, side: 'b' }
     return { x: 7, y: 32, side: 'b' }
+  }
+
+  if (type === 'wokwi-servo') {
+    switch (pin) {
+      case 'PWM':
+      case 'pwm':
+      case 'SIG':
+      case 'sig':
+      case '1':
+        return { x: 0, y: 16, side: 'l' }
+      case 'V+':
+      case 'v+':
+      case 'VCC':
+      case 'vcc':
+      case '5V':
+      case '5v':
+      case '2':
+        return { x: 0, y: 28, side: 'l' }
+      case 'GND':
+      case 'gnd':
+      case '3':
+        return { x: 0, y: 40, side: 'l' }
+      default:
+        return { x: 0, y: 16, side: 'l' }
+    }
   }
 
   return { x: 30, y: 20 }
@@ -518,6 +545,86 @@ export const LedArtwork: React.FC<{ attrs?: Record<string, string>; selected?: b
       {/* Label under LED */}
       {label && (
         <text x="11" y="44" fill={theme.text} fontSize="7.5" fontFamily="sans-serif" fontWeight="bold" textAnchor="middle">
+          {label}
+        </text>
+      )}
+    </g>
+  )
+}
+
+export const ServoArtwork: React.FC<{ attrs?: Record<string, string>; id?: string; selected?: boolean }> = ({ attrs, id, selected }) => {
+  const label = attrs?.label ?? id ?? 'Servo'
+  const isAc = label.toLowerCase().includes('ac') || id?.toLowerCase().includes('ac')
+  const themeColor = isAc ? '#0284c7' : '#16a34a'
+
+  return (
+    <g className="select-none">
+      {/* Mounting flanges / tabs */}
+      <rect x="10" y="8" width="6" height="40" rx="1.5" fill="#1e3a8a" stroke="#172554" strokeWidth="0.8" />
+      <rect x="74" y="8" width="6" height="40" rx="1.5" fill="#1e3a8a" stroke="#172554" strokeWidth="0.8" />
+      <circle cx="13" cy="14" r="1.5" fill="#0f172a" />
+      <circle cx="13" cy="42" r="1.5" fill="#0f172a" />
+      <circle cx="77" cy="14" r="1.5" fill="#0f172a" />
+      <circle cx="77" cy="42" r="1.5" fill="#0f172a" />
+
+      {/* Main Servo Body (Translucent Blue SG90 Plastic) */}
+      <rect
+        x="16"
+        y="6"
+        width="58"
+        height="44"
+        rx="3"
+        fill="#2563eb"
+        stroke={selected ? '#ffffff' : '#1d4ed8'}
+        strokeWidth={selected ? 2 : 1.2}
+      />
+      <rect x="18" y="8" width="54" height="40" rx="2" fill="#1d4ed8" opacity="0.6" />
+
+      {/* Gear Cylinder Turret Protrusion */}
+      <circle cx="56" cy="28" r="14" fill="#1e40af" stroke="#1d4ed8" strokeWidth="1" />
+      <circle cx="56" cy="28" r="10" fill="#3b82f6" />
+
+      {/* Servo Output Shaft / Horn (Single horn arm) */}
+      <g transform="rotate(35 56 28)">
+        <path
+          d="M 52 28 C 52 23.5, 60 23.5, 60 28 L 76 26 C 78 26, 78 30, 76 30 L 60 28 Z"
+          fill="#f8fafc"
+          stroke="#94a3b8"
+          strokeWidth="0.8"
+        />
+        <circle cx="56" cy="28" r="3.5" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.8" />
+        <circle cx="64" cy="27.5" r="0.9" fill="#94a3b8" />
+        <circle cx="69" cy="27.8" r="0.9" fill="#94a3b8" />
+        <circle cx="74" cy="28" r="0.9" fill="#94a3b8" />
+      </g>
+
+      {/* 3-Pin Cable Exit Block */}
+      <rect x="0" y="10" width="16" height="36" rx="2" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
+
+      {/* 3 Wires / Terminals */}
+      {/* PWM (Orange) */}
+      <line x1="0" y1="16" x2="16" y2="16" stroke="#f97316" strokeWidth="2.5" />
+      <circle cx="0" cy="16" r="1.8" fill="#f97316" stroke="#0f172a" strokeWidth="0.8" />
+      <text x="7" y="14" fill="#fb923c" fontSize="5" fontWeight="bold" textAnchor="middle">PWM</text>
+
+      {/* V+ (Red) */}
+      <line x1="0" y1="28" x2="16" y2="28" stroke="#ef4444" strokeWidth="2.5" />
+      <circle cx="0" cy="28" r="1.8" fill="#ef4444" stroke="#0f172a" strokeWidth="0.8" />
+      <text x="7" y="26" fill="#f87171" fontSize="5" fontWeight="bold" textAnchor="middle">V+</text>
+
+      {/* GND (Brown) */}
+      <line x1="0" y1="40" x2="16" y2="40" stroke="#78350f" strokeWidth="2.5" />
+      <circle cx="0" cy="40" r="1.8" fill="#78350f" stroke="#0f172a" strokeWidth="0.8" />
+      <text x="7" y="38" fill="#d97706" fontSize="5" fontWeight="bold" textAnchor="middle">GND</text>
+
+      {/* Label Badge on Servo Body */}
+      <rect x="22" y="15" width="22" height="26" rx="2" fill="#0f172a" opacity="0.75" />
+      <text x="33" y="24" fill={themeColor} fontSize="6" fontWeight="bold" textAnchor="middle">SG90</text>
+      <text x="33" y="34" fill="#f8fafc" fontSize="5" fontWeight="bold" textAnchor="middle">{isAc ? 'AC' : 'FAN'}</text>
+
+      {/* Full ID Label below servo */}
+      {label && (
+        <text x="45" y="54" fill={themeColor} fontSize="7" fontFamily="sans-serif" fontWeight="bold" textAnchor="middle">
           {label}
         </text>
       )}

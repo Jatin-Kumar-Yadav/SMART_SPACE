@@ -1,4 +1,4 @@
-import { ArrowLeft, Box, Cloud, CloudOff, Home, Maximize, Redo2, RotateCcw, Save, Settings, Square, Undo2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Box, Cloud, CloudOff, Home, Maximize, Redo2, RotateCcw, Save, Square, Undo2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/controls'
 import { Tip } from '@/components/ui/tooltip'
@@ -32,7 +32,6 @@ export function TopBar() {
   const viewMode = useEditor((s) => s.viewMode)
   const set = useEditor((s) => s.set)
   const camera = useEditor((s) => s.camera)
-  const layout = useLayout((s) => s.set)
   const mode = useLayout((s) => s.mode)
   const setView = (v: '2d' | '3d') => {
     set({ viewMode: v })
@@ -63,9 +62,6 @@ export function TopBar() {
       <Icon label="Reset camera" onClick={() => camera('reset')}><RotateCcw size={15} /></Icon>
         </>
       )}
-      <div className="ml-auto flex items-center gap-1.5">
-        <Icon label="Settings" onClick={() => layout({ rightTab: 'space', rightOpen: true })}><Settings size={15} /></Icon>
-      </div>
     </header>
   )
 }

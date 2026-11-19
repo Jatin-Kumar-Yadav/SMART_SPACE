@@ -18,6 +18,7 @@ import { LibraryPanel } from '@/components/panels/LibraryPanel'
 import { BottomDock } from '@/components/simulation/BottomDock'
 import { HoverTooltip } from '@/components/simulation/HoverTooltip'
 import { Legend } from '@/components/simulation/Legend'
+import { ZoneDetailCard } from '@/components/simulation/ZoneDetailCard'
 import { RightPanel } from './RightPanel'
 import { TopBar } from './TopBar'
 
@@ -41,6 +42,7 @@ function Editor() {
                 <EditorCanvas />
                 <LayerChips />
                 <Legend />
+                <ZoneDetailCard />
                 {tool === 'wall' && <div className="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 rounded-md bg-slate-900/85 px-3 py-1.5 text-[12px] text-white">Wall tool: click to start, click again to finish · Esc to stop</div>}
               </div>
               <BottomDock />

@@ -24,10 +24,11 @@ export function PinsPanel() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-1 border-b border-slate-200 px-3 py-2 text-[11.5px] text-slate-600">
-        <p>The planner picks pins for you. You can override a pin to experiment; the validator re-checks the whole plan immediately.</p>
-        {hasOverrides && <Button size="sm" variant="secondary" onClick={() => { updateHardware({ pinOverrides: {} }); generateHardwareSetup() }}>Reset manual pins</Button>}
-      </div>
+      {hasOverrides && (
+        <div className="border-b border-slate-200 px-3 py-1.5 text-right">
+          <Button size="sm" variant="secondary" onClick={() => { updateHardware({ pinOverrides: {} }); generateHardwareSetup() }}>Reset manual pins</Button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-[11.5px]">
           <thead className="sticky top-0 bg-slate-100 text-left text-[10.5px] uppercase tracking-wide text-slate-500"><tr><th className="px-2 py-1.5">Virtual device</th><th className="px-2 py-1.5">Hardware</th><th className="px-2 py-1.5">Pin / channel</th></tr></thead>
@@ -58,10 +59,6 @@ export function PinsPanel() {
             })}
           </tbody>
         </table>
-      </div>
-      <div className="space-y-0.5 border-t border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        <p className="font-medium text-slate-600">Why this many controllers</p>
-        {plan.reasons.map((r, i) => <p key={i}>• {r}</p>)}
       </div>
     </div>
   )

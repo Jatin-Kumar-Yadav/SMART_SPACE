@@ -81,8 +81,29 @@ function HoverPlane() {
     const iz = Math.min(snap.nz - 1, Math.max(0, Math.floor((e.point.z / dims.width) * snap.nz)))
     setFloor({ cell: iz * snap.nx + ix, x: e.point.x, z: e.point.z, sx: e.nativeEvent.clientX, sy: e.nativeEvent.clientY })
   }
+  const onPointerClick = (e: ThreeEvent<MouseEvent>) => {
+    if (layer === 'zones' && e.delta < 5) {
+      const snap = useSim.getState().snapshot
+      if (!snap) return
+      const ix = Math.min(snap.nx - 1, Math.max(0, Math.floor((e.point.x / dims.length) * snap.nx)))
+      const iz = Math.min(snap.nz - 1, Math.max(0, Math.floor((e.point.z / dims.width) * snap.nz)))
+      const cell = iz * snap.nx + ix
+      const zid = snap.zoneIdByCell[cell]
+      if (zid) {
+        const cur = useSim.getState().selectedZoneId
+        useSim.getState().setSelectedZoneId(cur === zid ? null : zid)
+      }
+    }
+  }
   return (
-    <mesh position={[dims.length / 2, 0.03, dims.width / 2]} rotation-x={-Math.PI / 2} onPointerMove={onMove} onPointerOut={() => setFloor(null)} visible={false}>
+    <mesh
+      position={[dims.length / 2, 0.03, dims.width / 2]}
+      rotation-x={-Math.PI / 2}
+      onPointerMove={onMove}
+      onPointerOut={() => setFloor(null)}
+      onClick={onPointerClick}
+      visible={false}
+    >
       <planeGeometry args={[dims.length, dims.width]} />
       <meshBasicMaterial />
     </mesh>

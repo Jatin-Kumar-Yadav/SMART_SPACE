@@ -1,12 +1,11 @@
 import { Copy, Download } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { generateWokwiZip } from '@/iot/wokwi'
 import { makeZip } from '@/iot/zip'
 import { useIot } from '@/store/iotStore'
 import { toast } from '@/store/uiStore'
 import { copyText, downloadBlob } from './download'
-
-const WOKWI_FILES = ['sketch.ino', 'diagram.json', 'libraries.txt', 'wokwi.toml', 'README.md'] as const
 
 const CPP_KEYWORDS = new Set([
   'const', 'static', 'extern', 'volatile', 'register',
@@ -21,7 +20,8 @@ const CPP_TYPES = new Set([
   'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t',
   'int8_t', 'int16_t', 'int32_t', 'int64_t',
   'size_t', 'String', 'WiFiClient', 'PubSubClient', 'StaticJsonDocument',
-  'DynamicJsonDocument', 'DHTesp', 'DHT', 'BH1750', 'TwoWire', 'HardwareSerial'
+  'DynamicJsonDocument', 'DHTesp', 'DHT', 'BH1750', 'TwoWire', 'HardwareSerial',
+  'Servo', 'ESP32PWM'
 ])
 
 const CPP_CONSTANTS = new Set([
@@ -176,6 +176,21 @@ function renderCodeLine(line: string, lang: string): React.ReactNode {
   if (lang === 'cpp') return highlightCppLine(line)
   if (lang === 'json') return highlightJsonLine(line)
   if (lang === 'python') return highlightPythonLine(line)
+  if (lang === 'ini' || lang === 'toml') {
+    const trimmed = line.trimStart()
+    if (trimmed.startsWith(';') || trimmed.startsWith('#')) return <span className="text-slate-500">{line}</span>
+    if (trimmed.startsWith('[') && trimmed.includes(']')) return <span className="font-semibold text-purple-400">{line}</span>
+    if (trimmed.includes('=')) {
+      const idx = line.indexOf('=')
+      return (
+        <>
+          <span className="text-sky-300">{line.slice(0, idx)}</span>
+          <span className="text-slate-400">=</span>
+          <span className="text-amber-200">{line.slice(idx + 1)}</span>
+        </>
+      )
+    }
+  }
   if (line.trimStart().startsWith('#')) return <span className="text-slate-500">{line}</span>
   return <span className="text-slate-200">{line}</span>
 }
@@ -191,7 +206,7 @@ interface CodeFileOption {
 
 export function CodePanel() {
   const { plan, firmware, wokwi, ctrl, guide } = useIot()
-  const [selectedId, setSelectedId] = useState<string>('firmware')
+  const [selectedId, setSelectedId] = useState<string>('src/main.cpp')
 
   const fw = firmware.find((f) => f.controllerId === ctrl)
   const wk = ctrl ? wokwi[ctrl] : undefined
@@ -214,11 +229,11 @@ export function CodePanel() {
 
     if (wk?.ok) {
       opts.push({
-        id: 'sketch.ino',
-        label: 'sketch.ino · Wokwi simulation firmware',
-        filename: 'sketch.ino',
-        text: wk.files['sketch.ino'] ?? '',
-        banner: 'Arduino sketch for Wokwi simulation · matches diagram.json pin assignments and interactive sensors.',
+        id: 'src/main.cpp',
+        label: 'src/main.cpp · PlatformIO main firmware',
+        filename: 'main.cpp',
+        text: wk.files['src/main.cpp'] ?? '',
+        banner: 'PlatformIO C++ firmware · compiled into .pio/build/esp32dev/firmware.bin for simulation.',
         lang: 'cpp',
       })
       opts.push({
@@ -230,6 +245,30 @@ export function CodePanel() {
         lang: 'json',
       })
       opts.push({
+        id: 'platformio.ini',
+        label: 'platformio.ini · PlatformIO configuration',
+        filename: 'platformio.ini',
+        text: wk.files['platformio.ini'] ?? '',
+        banner: 'PlatformIO configuration defining ESP32 DevKit board, Arduino framework, 115200 baud, and libraries.',
+        lang: 'ini',
+      })
+      opts.push({
+        id: 'wokwi.toml',
+        label: 'wokwi.toml · Wokwi simulator config',
+        filename: 'wokwi.toml',
+        text: wk.files['wokwi.toml'] ?? '',
+        banner: 'Wokwi for VS Code config linking compiled .pio/build/esp32dev binary & ELF to diagram.json.',
+        lang: 'toml',
+      })
+      opts.push({
+        id: 'sketch.ino',
+        label: 'sketch.ino · Arduino simulation sketch',
+        filename: 'sketch.ino',
+        text: wk.files['sketch.ino'] ?? '',
+        banner: 'Synchronized Arduino sketch · matches src/main.cpp and diagram.json GPIO pin assignments.',
+        lang: 'cpp',
+      })
+      opts.push({
         id: 'libraries.txt',
         label: 'libraries.txt · Arduino library dependencies',
         filename: 'libraries.txt',
@@ -238,20 +277,20 @@ export function CodePanel() {
         lang: 'text',
       })
       opts.push({
-        id: 'wokwi.toml',
-        label: 'wokwi.toml · Wokwi simulator config',
-        filename: 'wokwi.toml',
-        text: wk.files['wokwi.toml'] ?? '',
-        banner: 'Wokwi for VS Code configuration file linking diagram.json to sketch.ino.',
-        lang: 'toml',
-      })
-      opts.push({
         id: 'README.md',
-        label: 'README.md · documentation & serial commands',
+        label: 'README.md · documentation & instructions',
         filename: 'README.md',
         text: wk.files['README.md'] ?? '',
-        banner: 'Classroom IoT hardware integration documentation and interactive serial monitor commands.',
+        banner: 'PlatformIO + Wokwi for VS Code step-by-step instructions and interactive serial commands.',
         lang: 'markdown',
+      })
+      opts.push({
+        id: '.gitignore',
+        label: '.gitignore · Git ignore rules',
+        filename: '.gitignore',
+        text: wk.files['.gitignore'] ?? '',
+        banner: 'Excludes .pio build directory and VS Code local caches from git tracking.',
+        lang: 'text',
       })
     }
 
@@ -282,10 +321,9 @@ export function CodePanel() {
 
   const handleDownloadProject = () => {
     if (wk?.ok) {
-      const zipFiles: { name: string; data: string | Uint8Array }[] = WOKWI_FILES.map((n) => ({ name: n, data: wk.files[n] }))
-      if (guide) zipFiles.push({ name: 'connection-guide.md', data: guide })
-      downloadBlob(`wokwi-${ctrl}.zip`, makeZip(zipFiles) as BlobPart, 'application/zip')
-      toast('Wokwi project ZIP downloaded. Extract and open folder in VS Code.', 'success')
+      const zipData = generateWokwiZip(wk)
+      downloadBlob('SMART_SPACE_Wokwi_Project.zip', zipData as BlobPart, 'application/zip')
+      toast('PlatformIO + Wokwi project ZIP downloaded. Extract and open SMART_SPACE_Wokwi_Project in VS Code.', 'success')
     } else {
       const files = [...firmware.map((f) => ({ name: f.name, data: f.code }))]
       if (guide) files.push({ name: 'connection-guide.md', data: guide })
@@ -338,13 +376,6 @@ export function CodePanel() {
           <Download size={13} />Download Project
         </Button>
       </div>
-
-      {/* Amber Note Banner */}
-      {currentFile?.banner && (
-        <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-900">
-          {currentFile.banner}
-        </div>
-      )}
 
       {/* Dark Syntax Highlighted Code Viewer with Line Numbers */}
       <div className="min-h-0 flex-1 overflow-auto bg-[#070b14] p-3 text-slate-200 select-text ss-scroll">

@@ -46,7 +46,14 @@ export function Legend() {
   if (layer === 'airflow') {
     return <div className={box}><div className="font-semibold">Device influence</div><div className="text-slate-500">Translucent regions show fan / AC reach at their current level.</div></div>
   }
-  if (layer === 'zones') return <div className={box}><div className="font-semibold">Environmental zones</div><div className="text-slate-500">Cells are grouped by the devices that reach them.</div></div>
+  if (layer === 'zones') {
+    return (
+      <div className={box}>
+        <div className="font-semibold text-slate-800">Classroom zones</div>
+        <div className="text-slate-500">Primary zones by AC · Subzones by Fan · Bold lines mark AC zones.</div>
+      </div>
+    )
+  }
   if (layer === 'occupancy') return <div className={box}><div className="font-semibold">Occupancy density</div><div className="text-slate-500">Warm cells contain seated occupants.</div></div>
   return null
 }

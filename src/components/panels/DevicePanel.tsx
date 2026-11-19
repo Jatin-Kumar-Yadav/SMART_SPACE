@@ -1,12 +1,11 @@
-import { Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Field, NumberInput, Section, SelectBox, Slider, Toggle } from '@/components/ui/controls'
+import { Field, NumberInput, Section, Slider, Toggle } from '@/components/ui/controls'
 import { cn } from '@/lib/utils'
-import { acLevels } from '@/objects/catalog'
 import { profileValue } from '@/simulation/influence'
 import { setDevice } from '@/store/actions'
 import { useEditor } from '@/store/editorStore'
-import type { AcDevice, AirLevel, DeviceConfig, FanDevice, InfluenceShape, LightDevice, ProfilePoint, SceneObject } from '@/types'
+import type { AcDevice, AirLevel, DeviceConfig, FanDevice, LightDevice, ProfilePoint, SceneObject } from '@/types'
 
 type Air = FanDevice | AcDevice
 
@@ -108,17 +107,7 @@ function AirPanel({ obj, d }: { obj: SceneObject; d: Air }) {
         </div>
         <p className="text-[11px] text-slate-400">Clicking a level switches the device to manual.</p>
       </Section>
-      {isAc && (
-        <Section title="Cooling plant">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Capacity (W)"><NumberInput value={d.capacityW} step={500} min={500} digits={0} onCommit={(capacityW) => update(obj.id, (c) => { const a = c as AcDevice; return { ...a, capacityW, levels: a.levels.map((l) => ({ ...l, powerW: Math.round((capacityW * l.coolingFrac) / a.cop) })) } })} /></Field>
-            <Field label="COP"><NumberInput value={d.cop} step={0.1} min={1} max={8} onCommit={(cop) => update(obj.id, (c) => { const a = c as AcDevice; return { ...a, cop, levels: a.levels.map((l) => ({ ...l, powerW: Math.round((a.capacityW * l.coolingFrac) / cop) })) } })} /></Field>
-            <Field label="Supply air (°C)"><NumberInput value={d.supplyTempC} step={1} min={4} max={22} digits={0} onCommit={(supplyTempC) => update(obj.id, (c) => ({ ...(c as AcDevice), supplyTempC }))} /></Field>
-            <Field label="Influence shape"><SelectBox<InfluenceShape> value={d.shape} onChange={(shape) => update(obj.id, (c) => ({ ...(c as AcDevice), shape }))} options={[{ value: 'circle', label: 'Circular' }, { value: 'rect', label: 'Rectangular' }, { value: 'directional', label: 'Directional' }]} /></Field>
-          </div>
-          <Button size="sm" onClick={() => update(obj.id, (c) => { const a = c as AcDevice; return { ...a, levels: acLevels(a.capacityW, a.cop) } })}><RotateCcw size={12} />Reset levels from capacity</Button>
-        </Section>
-      )}
+
       {isAc && d.shape === 'directional' && (
         <Section title="Directional cooling profile" right={<Button size="sm" onClick={() => update(obj.id, (c) => { const a = c as AcDevice; const last = a.profile[a.profile.length - 1]; return { ...a, profile: [...a.profile, { x: (last?.x ?? 0) + 1, v: 0 }] } })}><Plus size={12} />Point</Button>}>
           <ProfilePlot profile={d.profile} />
@@ -157,7 +146,6 @@ function LightPanel({ obj, d }: { obj: SceneObject; d: LightDevice }) {
         <div className="grid grid-cols-2 gap-2">
           <Field label="Luminous flux (lm)"><NumberInput value={d.lumens} step={100} min={0} digits={0} onCommit={(lumens) => update(obj.id, (c) => ({ ...(c as LightDevice), lumens }))} /></Field>
           <Field label="Power (W)"><NumberInput value={d.powerW} step={1} min={0} digits={0} onCommit={(powerW) => update(obj.id, (c) => ({ ...(c as LightDevice), powerW }))} /></Field>
-          <Field label="Beam angle (°)"><NumberInput value={d.beamAngle} step={10} min={20} max={360} digits={0} onCommit={(beamAngle) => update(obj.id, (c) => ({ ...(c as LightDevice), beamAngle }))} /></Field>
         </div>
       </Section>
     </>

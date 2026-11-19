@@ -1,6 +1,7 @@
 import { BOARDS, pinOf, pinPreference, pinSupports } from './boards'
 import { PARTS } from './parts'
 import type { HardwarePlan, PartType, PlanPart } from './types'
+import { makeZip } from './zip'
 
 /**
  * Wokwi export. Wokwi simulates only some of our parts (see docs/wokwi-notes.md), so the export is a clearly
@@ -14,18 +15,26 @@ export interface Substitution {
   reason: string
 }
 
+export interface WokwiFiles {
+  'src/main.cpp': string
+  'diagram.json': string
+  'platformio.ini': string
+  'wokwi.toml': string
+  'sketch.ino': string
+  'libraries.txt': string
+  'README.md': string
+  '.gitignore': string
+  '.vscode/extensions.json': string
+  '.vscode/settings.json': string
+  [key: string]: string
+}
+
 export type WokwiResult =
   | {
       ok: true
       controllerId: string
       board: 'esp32' | 'uno'
-      files: {
-        'diagram.json': string
-        'sketch.ino': string
-        'libraries.txt': string
-        'wokwi.toml': string
-        'README.md': string
-      }
+      files: WokwiFiles
       substitutions: Substitution[]
       warnings: string[]
       /** page that opens a blank project of the right board (no import URL is documented by Wokwi) */
@@ -43,7 +52,6 @@ const SUBSTITUTE: Partial<Record<PartType, { to: PartType; reason: string }>> = 
 const NOT_SUPPORTED: Partial<Record<PartType, string>> = {
   pca9685: 'PCA9685 PWM driver',
   ads1115: 'ADS1115 ADC',
-  tca9548a: 'TCA9548A I²C multiplexer',
 }
 
 export function wokwiSupport(plan: HardwarePlan, controllerId?: string): { ok: true } | { ok: false; reason: string } {
@@ -77,6 +85,26 @@ function substitute(plan: HardwarePlan, ctrl: string): { plan: HardwarePlan; sub
   const subs: Substitution[] = []
   const warnings: string[] = []
   const board = BOARDS[p.family]
+
+  // Omit TCA9548A multiplexer if present: in the Wokwi simulation copy,
+  // I2C sensors (BH1750, BME280) are substituted by direct ADC/GPIO sensors (LDR, DHT22),
+  // so the I2C multiplexer is not needed.
+  const tcaParts = p.parts.filter((x) => x.controllerId === ctrl && x.type === 'tca9548a')
+  for (const tca of tcaParts) {
+    p.parts = p.parts.filter((x) => x.id !== tca.id)
+    p.pins = p.pins.filter((u) => u.partId !== tca.id)
+    delete p.channels[tca.id]
+    subs.push({
+      partId: tca.id,
+      from: 'tca9548a',
+      to: 'ldr' as PartType,
+      reason: 'Omitted from Wokwi copy: I²C sensors are converted to direct analog inputs, eliminating the multiplexer.',
+    })
+  }
+  if (tcaParts.length > 0) {
+    p.nets = p.nets.filter((n) => !tcaParts.some((tca) => n.id.startsWith(tca.id)))
+  }
+
   const used = new Set(p.pins.filter((u) => u.controllerId === ctrl).map((u) => u.pinId))
   const take = (fn: 'digital-io' | 'adc') => {
     let c = board.pins.filter((x) => !used.has(x.id) && pinSupports(x, fn, board.hasWifi)).sort((a, b) => pinPreference(a, fn) - pinPreference(b, fn))[0]
@@ -111,7 +139,14 @@ function substitute(plan: HardwarePlan, ctrl: string): { plan: HardwarePlan; sub
   }
 
   const stillI2c = p.parts.some((x) => x.controllerId === ctrl && x.i2cAddr != null)
-  if (!stillI2c) p.nets = p.nets.filter((n) => n.id !== `${ctrl}:SDA` && n.id !== `${ctrl}:SCL`)
+  if (!stillI2c) {
+    p.nets = p.nets.filter((n) => n.id !== `${ctrl}:SDA` && n.id !== `${ctrl}:SCL`)
+    const i2cDef = board.i2cDefault
+    if (i2cDef) {
+      used.delete(i2cDef.sda)
+      used.delete(i2cDef.scl)
+    }
+  }
   return { plan: p, subs, warnings }
 }
 
@@ -234,7 +269,7 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
     }
   }
 
-  // Helper to place an LED output column with accompanying 220-ohm resistors
+  // Helper to place an LED output column with accompanying 220-ohm resistors (for Lights)
   const placeLedColumn = (groupParts: PlanPart[], colLeft: number, color: string, wireColor: string, prefix: string) => {
     let top = 40
     groupParts.forEach((part, idx) => {
@@ -269,15 +304,46 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
     })
   }
 
+  // Helper to place a Servo motor column (for ACs and Fans)
+  const placeServoColumn = (groupParts: PlanPart[], colLeft: number, wireColor: string, prefix: string) => {
+    let top = 40
+    groupParts.forEach((part, idx) => {
+      const pin = gpioPin(part.id)
+      if (!pin) return
+
+      const servoId = part.id
+      const idUpper = part.id.toUpperCase()
+      const num = idx + 1
+
+      parts.push({
+        type: 'wokwi-servo',
+        id: servoId,
+        left: colLeft,
+        top,
+        attrs: { horn: 'single', label: `${prefix} ${num} (${idUpper})` }
+      })
+
+      // Wire:
+      // PWM signal -> MCU GPIO
+      // V+ (5V power) -> MCU 5V
+      // GND -> MCU GND
+      wire(`${servoId}:PWM`, `${boardId}:${pin}`, wireColor)
+      wire(`${servoId}:V+`, `${boardId}:5V`, WIRE_COLORS.power5v)
+      wire(`${servoId}:GND`, `${boardId}:GND.1`, WIRE_COLORS.ground)
+
+      top += 125
+    })
+  }
+
   // 2. Position Actuators in separate organized columns on the RIGHT
-  let currentRightCol = boardLeft + 320
+  let currentRightCol = boardLeft + 300
   if (acOutputs.length > 0) {
-    placeLedColumn(acOutputs, currentRightCol, 'blue', WIRE_COLORS.ac, 'AC')
-    currentRightCol += 160
+    placeServoColumn(acOutputs, currentRightCol, WIRE_COLORS.ac, 'AC')
+    currentRightCol += 180
   }
   if (fanOutputs.length > 0) {
-    placeLedColumn(fanOutputs, currentRightCol, 'green', WIRE_COLORS.fan, 'Fan')
-    currentRightCol += 160
+    placeServoColumn(fanOutputs, currentRightCol, WIRE_COLORS.fan, 'Fan')
+    currentRightCol += 180
   }
   if (lightOutputs.length > 0) {
     placeLedColumn(lightOutputs, currentRightCol, 'yellow', WIRE_COLORS.light, 'Light')
@@ -288,18 +354,27 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
   }
 
   // Informative simulation warnings
-  warnings.push('Wokwi simulation: Physical ACs and fans are represented by independent labeled indicator LEDs and current-limiting resistors.')
+  warnings.push('Wokwi simulation: ACs and fans are represented by independent SG90 micro servos (0° = OFF, 90° = ON), and lights by indicator LEDs.')
   warnings.push('Run simulation directly in VS Code using the Wokwi for VS Code extension (F1 -> Wokwi: Start Simulator).')
 
   // Generate runnable Arduino C++ simulation firmware
   const sketch = generateSimulationSketch(sp, ctrl, opts)
-  const libs = ['DHT sensor library', 'Adafruit Unified Sensor']
-  const toml = `# Wokwi for VS Code Configuration
-[wokwi]
-version = 1
-firmware = 'sketch.ino'
-elf = ''
-`
+  const libs = ['DHT sensor library', 'Adafruit Unified Sensor', 'ESP32Servo']
+  const pioIni = generatePlatformIOIni(family)
+  const toml = generateWokwiToml(family)
+  const gitignore = generateGitignore()
+  const extensionsJson = JSON.stringify({
+    recommendations: [
+      'platformio.platformio-ide',
+      'wokwi.wokwi-vscode'
+    ]
+  }, null, 2) + '\n'
+  const settingsJson = JSON.stringify({
+    'files.associations': {
+      '*.ino': 'cpp'
+    }
+  }, null, 2) + '\n'
+
   const diagram = {
     version: 1,
     author: 'SMART_SPACE Classroom Digital Twin',
@@ -316,17 +391,104 @@ elf = ''
     controllerId: ctrl,
     board: family,
     files: {
+      'src/main.cpp': sketch,
       'diagram.json': JSON.stringify(diagram, null, 2),
+      'platformio.ini': pioIni,
+      'wokwi.toml': toml,
       'sketch.ino': sketch,
       'libraries.txt': libs.join('\n') + '\n',
-      'wokwi.toml': toml,
       'README.md': readme,
+      '.gitignore': gitignore,
+      '.vscode/extensions.json': extensionsJson,
+      '.vscode/settings.json': settingsJson,
     },
     substitutions: subs,
     warnings,
     openUrl: family === 'esp32' ? 'https://wokwi.com/projects/new/esp32' : 'https://wokwi.com/projects/new/arduino-uno',
     openUrlVerified: family === 'esp32',
   }
+}
+
+export const WOKWI_ZIP_ROOT = 'SMART_SPACE_Wokwi_Project'
+
+/** Generates a complete, ready-to-build PlatformIO + Wokwi for VS Code project ZIP */
+export function generateWokwiZip(wk: Extract<WokwiResult, { ok: true }>): Uint8Array {
+  const root = WOKWI_ZIP_ROOT
+  const entries: { name: string; data: string | Uint8Array }[] = [
+    { name: `${root}/src/main.cpp`, data: wk.files['src/main.cpp'] },
+    { name: `${root}/diagram.json`, data: wk.files['diagram.json'] },
+    { name: `${root}/platformio.ini`, data: wk.files['platformio.ini'] },
+    { name: `${root}/wokwi.toml`, data: wk.files['wokwi.toml'] },
+    { name: `${root}/sketch.ino`, data: wk.files['sketch.ino'] },
+    { name: `${root}/libraries.txt`, data: wk.files['libraries.txt'] },
+    { name: `${root}/README.md`, data: wk.files['README.md'] },
+    { name: `${root}/.gitignore`, data: wk.files['.gitignore'] },
+    { name: `${root}/.vscode/extensions.json`, data: wk.files['.vscode/extensions.json'] },
+    { name: `${root}/.vscode/settings.json`, data: wk.files['.vscode/settings.json'] },
+  ]
+  return makeZip(entries)
+}
+
+function generatePlatformIOIni(family: 'esp32' | 'uno'): string {
+  if (family === 'esp32') {
+    return `; PlatformIO Project Configuration File for SMART_SPACE ESP32 Wokwi Simulation
+; https://docs.platformio.org/page/projectconf.html
+
+[env:esp32dev]
+platform = espressif32
+board = esp32dev
+framework = arduino
+monitor_speed = 115200
+lib_deps =
+    adafruit/DHT sensor library @ ^1.4.6
+    adafruit/Adafruit Unified Sensor @ ^1.1.14
+    madhephaestus/ESP32Servo @ ^3.0.6
+`
+  }
+  return `; PlatformIO Project Configuration File for SMART_SPACE Arduino Uno Wokwi Simulation
+; https://docs.platformio.org/page/projectconf.html
+
+[env:uno]
+platform = atmelavr
+board = uno
+framework = arduino
+monitor_speed = 115200
+lib_deps =
+    adafruit/DHT sensor library @ ^1.4.6
+    adafruit/Adafruit Unified Sensor @ ^1.1.14
+`
+}
+
+function generateWokwiToml(family: 'esp32' | 'uno'): string {
+  if (family === 'esp32') {
+    return `# Wokwi for VS Code Configuration
+# Points to compiled PlatformIO firmware binary and ELF files
+[wokwi]
+version = 1
+firmware = ".pio/build/esp32dev/firmware.bin"
+elf = ".pio/build/esp32dev/firmware.elf"
+`
+  }
+  return `# Wokwi for VS Code Configuration
+# Points to compiled PlatformIO firmware HEX and ELF files
+[wokwi]
+version = 1
+firmware = ".pio/build/uno/firmware.hex"
+elf = ".pio/build/uno/firmware.elf"
+`
+}
+
+function generateGitignore(): string {
+  return `# PlatformIO build output and local toolchains
+.pio/
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch/
+*.pyc
+.DS_Store
+Thumbs.db
+`
 }
 
 /** Generates a self-contained, runnable Arduino C++ simulation sketch for Wokwi */
@@ -358,11 +520,17 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
   code.push(`// SMART_SPACE — Wokwi Simulation Firmware (Runnable Arduino C++)`)
   code.push(`// Controller: ${ctrl} (${BOARDS[plan.family].name})`)
   code.push(`// WOKWI SIMULATION COPY — Automatically generated from classroom configuration`)
+  code.push(`// Actuators: Independent SG90 micro servos for ACs & Fans, LEDs for Lights`)
   code.push(`// Wokwi-GUEST virtual access point compatible`)
   code.push(`// ============================================================================`)
   code.push(``)
   code.push(`#include <Arduino.h>`)
   code.push(`#include <DHT.h>`)
+  code.push(`#if defined(ESP32)`)
+  code.push(`#include <ESP32Servo.h>`)
+  code.push(`#else`)
+  code.push(`#include <Servo.h>`)
+  code.push(`#endif`)
   code.push(``)
 
   // Configurable thresholds
@@ -402,14 +570,14 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
   }
 
   if (acs.length > 0) {
-    code.push(`// AC Outputs (Independent Control)`)
+    code.push(`// AC Outputs (Independent Servo Control)`)
     acs.forEach((a) => {
       code.push(`const int PIN_${a.id.toUpperCase()} = ${getPinNum(a.id)};`)
     })
   }
 
   if (fans.length > 0) {
-    code.push(`// Fan Outputs (Independent Control)`)
+    code.push(`// Fan Outputs (Independent Servo Control)`)
     fans.forEach((f) => {
       code.push(`const int PIN_${f.id.toUpperCase()} = ${getPinNum(f.id)};`)
     })
@@ -431,28 +599,49 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
 
   code.push(``)
 
+  // Servo Motor Instances for ACs and Fans
+  if (acs.length > 0 || fans.length > 0) {
+    code.push(`// Servo Motor Instances`)
+    acs.forEach((a) => {
+      code.push(`Servo servo_${a.id};`)
+    })
+    fans.forEach((f) => {
+      code.push(`Servo servo_${f.id};`)
+    })
+    code.push(``)
+  }
+
   // Data Structures
-  code.push(`struct OutputDevice {`)
+  code.push(`struct ActuatorDevice {`)
   code.push(`  const char* id;`)
   code.push(`  const char* type;`)
   code.push(`  int pin;`)
   code.push(`  int zoneIndex;`)
+  code.push(`  bool isServo;`)
   code.push(`  bool state;`)
+  code.push(`  int servoAngle;`)
+  code.push(`  Servo* servo;`)
   code.push(`};`)
   code.push(``)
 
-  code.push(`OutputDevice devices[] = {`)
-  acs.forEach((a, i) => {
-    code.push(`  {"${a.id}", "AC", PIN_${a.id.toUpperCase()}, ${i % Math.max(1, dhts.length)}, false},`)
-  })
-  fans.forEach((f, i) => {
-    code.push(`  {"${f.id}", "Fan", PIN_${f.id.toUpperCase()}, ${i % Math.max(1, pirs.length || 1)}, false},`)
-  })
-  lights.forEach((l, i) => {
-    code.push(`  {"${l.id}", "Light", PIN_${l.id.toUpperCase()}, ${i % Math.max(1, ldrs.length || 1)}, false},`)
-  })
+  const hasAnyDevices = acs.length > 0 || fans.length > 0 || lights.length > 0
+
+  code.push(`ActuatorDevice devices[] = {`)
+  if (hasAnyDevices) {
+    acs.forEach((a, i) => {
+      code.push(`  {"${a.id}", "AC", PIN_${a.id.toUpperCase()}, ${i % Math.max(1, dhts.length)}, true, false, 0, &servo_${a.id}},`)
+    })
+    fans.forEach((f, i) => {
+      code.push(`  {"${f.id}", "Fan", PIN_${f.id.toUpperCase()}, ${i % Math.max(1, pirs.length || 1)}, true, false, 0, &servo_${f.id}},`)
+    })
+    lights.forEach((l, i) => {
+      code.push(`  {"${l.id}", "Light", PIN_${l.id.toUpperCase()}, ${i % Math.max(1, ldrs.length || 1)}, false, false, -1, nullptr},`)
+    })
+  } else {
+    code.push(`  {"none", "None", -1, 0, false, false, -1, nullptr}`)
+  }
   code.push(`};`)
-  code.push(`const int NUM_DEVICES = sizeof(devices) / sizeof(devices[0]);`)
+  code.push(`const int NUM_DEVICES = ${hasAnyDevices ? 'sizeof(devices) / sizeof(devices[0])' : '0'};`)
   code.push(``)
 
   // Setup Function
@@ -468,6 +657,11 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
   code.push(`  Serial.print("Temperature Sensors:     "); Serial.println(${dhts.length});`)
   code.push(`  Serial.print("Light Sensors:           "); Serial.println(${ldrs.length});`)
   code.push(`  Serial.print("Occupancy (PIR) Sensors: "); Serial.println(${pirs.length});`)
+  code.push(`  Serial.println("--------------------------------------------------------");`)
+  code.push(`  Serial.println("Actuator Hardware Configuration:");`)
+  code.push(`  Serial.println("  ACs:    SG90 Micro Servos (0° = OFF, 90° = ON)");`)
+  code.push(`  Serial.println("  Fans:   SG90 Micro Servos (0° = OFF, 90° = ON)");`)
+  code.push(`  Serial.println("  Lights: Direct GPIO Indicator LEDs");`)
   code.push(`  Serial.println("--------------------------------------------------------");`)
   code.push(`  Serial.println("Commands available in Serial Monitor:");`)
   code.push(`  Serial.println("  TEMP <val>   - Set AC temperature threshold (e.g. TEMP 25.0)");`)
@@ -489,17 +683,35 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
     }
   })
 
+  // Allocate timers for ESP32 servos
+  if (acs.length > 0 || fans.length > 0) {
+    code.push(``)
+    code.push(`  #if defined(ESP32)`)
+    code.push(`  ESP32PWM::allocateTimer(0);`)
+    code.push(`  ESP32PWM::allocateTimer(1);`)
+    code.push(`  ESP32PWM::allocateTimer(2);`)
+    code.push(`  ESP32PWM::allocateTimer(3);`)
+    code.push(`  #endif`)
+  }
+
   // Initialize all outputs to safe OFF state
   code.push(``)
-  code.push(`  // Initialize all actuator outputs in safe OFF state`)
+  code.push(`  // Initialize all actuator outputs in safe OFF state (Servos at 0°, LEDs LOW)`)
   code.push(`  for (int i = 0; i < NUM_DEVICES; i++) {`)
   code.push(`    if (devices[i].pin >= 0) {`)
-  code.push(`      pinMode(devices[i].pin, OUTPUT);`)
-  code.push(`      digitalWrite(devices[i].pin, LOW);`)
-  code.push(`      devices[i].state = false;`)
+  code.push(`      if (devices[i].isServo && devices[i].servo != nullptr) {`)
+  code.push(`        devices[i].servo->attach(devices[i].pin);`)
+  code.push(`        devices[i].servo->write(0);`)
+  code.push(`        devices[i].servoAngle = 0;`)
+  code.push(`        devices[i].state = false;`)
+  code.push(`      } else {`)
+  code.push(`        pinMode(devices[i].pin, OUTPUT);`)
+  code.push(`        digitalWrite(devices[i].pin, LOW);`)
+  code.push(`        devices[i].state = false;`)
+  code.push(`      }`)
   code.push(`    }`)
   code.push(`  }`)
-  code.push(`  Serial.println("[BOOT] All outputs initialized in safe OFF state.\\n");`)
+  code.push(`  Serial.println("[BOOT] All outputs initialized in safe OFF state (Servos at 0°).\\n");`)
   code.push(`}`)
   code.push(``)
 
@@ -571,39 +783,62 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
   code.push(`    if (strcmp(devices[i].type, "AC") == 0) {`)
   code.push(`      float currentTemp = temps[z % ${Math.max(1, dhts.length)}];`)
   code.push(`      bool isOcc = occupied[z % ${Math.max(1, pirs.length || 1)}];`)
-  code.push(`      // Rule: AC turns ON if zone is occupied (or ALWAYS_COOL) and temp exceeds threshold`)
+  code.push(`      // Rule: AC turns ON when zone is occupied (or ALWAYS_COOL) and temp exceeds threshold`)
   code.push(`      if ((isOcc || ALWAYS_COOL) && currentTemp > TEMP_THRESHOLD_C) {`)
   code.push(`        newState = true;`)
   code.push(`      }`)
-  code.push(`      Serial.print("    -> "); Serial.print(devices[i].id); Serial.print(" (AC): ");`)
-  code.push(`      Serial.print(newState ? "[ ON ] " : "[ OFF ] ");`)
+  code.push(`      devices[i].state = newState;`)
+  code.push(`      devices[i].servoAngle = newState ? 90 : 0;`)
+  code.push(`      if (devices[i].servo != nullptr) {`)
+  code.push(`        devices[i].servo->write(devices[i].servoAngle);`)
+  code.push(`      }`)
+  code.push(`      Serial.print("    -> "); Serial.print(devices[i].id); Serial.print(" (AC Servo): ");`)
+  code.push(`      Serial.print(newState ? "[ ON: 90° ] " : "[ OFF: 0° ] ");`)
   code.push(`      if (newState) Serial.print("(Zone Hot & Occupied: ");`)
   code.push(`      else Serial.print("(Temp below target or unoccupied: ");`)
   code.push(`      Serial.print(currentTemp); Serial.print("°C vs Target "); Serial.print(TEMP_THRESHOLD_C); Serial.println("°C)");`)
   code.push(`    }`)
   code.push(`    else if (strcmp(devices[i].type, "Fan") == 0) {`)
   code.push(`      bool isOcc = occupied[z % ${Math.max(1, pirs.length || 1)}];`)
-  code.push(`      // Rule: Fan turns ON if zone is occupied`)
+  code.push(`      // Rule: Fan turns ON when zone is occupied`)
   code.push(`      if (isOcc) newState = true;`)
-  code.push(`      Serial.print("    -> "); Serial.print(devices[i].id); Serial.print(" (Fan): ");`)
-  code.push(`      Serial.print(newState ? "[ ON ] " : "[ OFF ] ");`)
+  code.push(`      devices[i].state = newState;`)
+  code.push(`      devices[i].servoAngle = newState ? 90 : 0;`)
+  code.push(`      if (devices[i].servo != nullptr) {`)
+  code.push(`        devices[i].servo->write(devices[i].servoAngle);`)
+  code.push(`      }`)
+  code.push(`      Serial.print("    -> "); Serial.print(devices[i].id); Serial.print(" (Fan Servo): ");`)
+  code.push(`      Serial.print(newState ? "[ ON: 90° ] " : "[ OFF: 0° ] ");`)
   code.push(`      Serial.println(isOcc ? "(Zone Occupied)" : "(Zone Unoccupied)");`)
   code.push(`    }`)
   code.push(`    else if (strcmp(devices[i].type, "Light") == 0) {`)
   code.push(`      int currentLight = lightsVal[z % ${Math.max(1, ldrs.length || 1)}];`)
   code.push(`      bool isOcc = occupied[z % ${Math.max(1, pirs.length || 1)}];`)
-  code.push(`      // Rule: Lights turn ON if zone is occupied and ambient light is below threshold`)
+  code.push(`      // Rule: Lights turn ON when zone is occupied and ambient light is below threshold`)
   code.push(`      if (isOcc && currentLight < LIGHT_THRESHOLD) newState = true;`)
-  code.push(`      Serial.print("    -> "); Serial.print(devices[i].id); Serial.print(" (Light): ");`)
+  code.push(`      devices[i].state = newState;`)
+  code.push(`      digitalWrite(devices[i].pin, newState ? HIGH : LOW);`)
+  code.push(`      Serial.print("    -> "); Serial.print(devices[i].id); Serial.print(" (Light LED): ");`)
   code.push(`      Serial.print(newState ? "[ ON ] " : "[ OFF ] ");`)
   code.push(`      if (newState) Serial.print("(Dark & Occupied: ");`)
   code.push(`      else Serial.print("(Daylight sufficient or unoccupied: ");`)
   code.push(`      Serial.print(currentLight); Serial.print(" vs Target "); Serial.print(LIGHT_THRESHOLD); Serial.println(")");`)
   code.push(`    }`)
+  code.push(`  }`)
   code.push(``)
-  code.push(`    // Apply output state to GPIO pin`)
-  code.push(`    devices[i].state = newState;`)
-  code.push(`    digitalWrite(devices[i].pin, newState ? HIGH : LOW);`)
+  code.push(`  // Device Status Summary (Standard Telemetry Reporting)`)
+  code.push(`  Serial.println("\\n  Device Status Summary:");`)
+  code.push(`  for (int i = 0; i < NUM_DEVICES; i++) {`)
+  code.push(`    String idUpper = String(devices[i].id);`)
+  code.push(`    idUpper.toUpperCase();`)
+  code.push(`    if (devices[i].isServo) {`)
+  code.push(`      Serial.print("  "); Serial.print(idUpper); Serial.print(": ");`)
+  code.push(`      Serial.print(devices[i].state ? "ON" : "OFF");`)
+  code.push(`      Serial.print(" — Servo: "); Serial.print(devices[i].servoAngle); Serial.println("°");`)
+  code.push(`    } else {`)
+  code.push(`      Serial.print("  "); Serial.print(idUpper); Serial.print(": ");`)
+  code.push(`      Serial.println(devices[i].state ? "ON" : "OFF");`)
+  code.push(`    }`)
   code.push(`  }`)
   code.push(`  Serial.println("--------------------------------------------------------\\n");`)
   code.push(`}`)
@@ -665,9 +900,9 @@ function generateReadme(ctrl: string, family: string, plan: HardwarePlan, subs: 
   const ldrs = parts.filter((p) => p.type === 'ldr')
   const pirs = parts.filter((p) => p.type === 'pir')
 
-  return `# SMART_SPACE — Wokwi for VS Code Simulation Project
+  return `# SMART_SPACE — PlatformIO + Wokwi Simulation Project
 
-This project simulates the IoT hardware and smart control system for your classroom using **Wokwi for VS Code**.
+This project simulates the IoT hardware and smart control system for your classroom using **PlatformIO** and **Wokwi for VS Code**.
 
 **Target Controller:** ${ctrl} (${BOARDS[family as 'esp32' | 'uno'].name})
 
@@ -678,8 +913,8 @@ This project simulates the IoT hardware and smart control system for your classr
 | Category | Component / Indicator | Quantity |
 | :--- | :--- | :--- |
 | **Controller** | ${BOARDS[family as 'esp32' | 'uno'].name} | 1 |
-| **AC Control Outputs** | Blue Indicator LEDs (220 Ω resistors) | ${acs.length} |
-| **Fan Control Outputs** | Green Indicator LEDs (220 Ω resistors) | ${fans.length} |
+| **AC Servos** | SG90 Micro Servo Motors (0° = OFF, 90° = ON) | ${acs.length} |
+| **Fan Servos** | SG90 Micro Servo Motors (0° = OFF, 90° = ON) | ${fans.length} |
 | **Light Control Outputs** | Yellow Indicator LEDs (220 Ω resistors) | ${lights.length} |
 | **Temperature Sensors** | DHT22 Humidity & Temp Sensors | ${dhts.length} |
 | **Light Sensors** | Photoresistor (LDR) Sensors | ${ldrs.length} |
@@ -690,47 +925,49 @@ ${subs.length > 0 ? subs.map((s) => `- **${s.partId}**: ${PARTS[s.from].label} i
 
 ---
 
-## How to Run in VS Code
+## Step-by-Step Instructions
 
-### Step 1: Install Wokwi for VS Code Extension
-1. Open Visual Studio Code.
-2. Open the Extensions sidebar (\`Ctrl+Shift+X\` or \`Cmd+Shift+X\`).
-3. Search for **Wokwi for VS Code** (ID: \`wokwi.wokwi-vscode\`) and click **Install**.
-
-### Step 2: Open the Project Folder
-1. Extract the downloaded ZIP archive into a dedicated directory on your computer.
-2. In VS Code, select **File > Open Folder...** and choose the extracted project folder.
-3. Verify the files are present:
-   - \`diagram.json\` (circuit schematic)
-   - \`sketch.ino\` (Arduino C++ simulation code)
-   - \`libraries.txt\` (required libraries)
-   - \`wokwi.toml\` (Wokwi extension config)
-
-### Step 3: Start the Simulation
-1. Open \`diagram.json\` in the editor.
-2. Press \`F1\` (or \`Ctrl+Shift+P\` / \`Cmd+Shift+P\`) and type:
+1. **Extract the ZIP:**
+   Extract the downloaded ZIP archive into a dedicated directory on your computer.
+2. **Open in VS Code:**
+   Launch Visual Studio Code and open the extracted \`SMART_SPACE_Wokwi_Project\` folder (\`File > Open Folder...\`).
+3. **Install Required Extensions:**
+   In the VS Code Extensions sidebar (\`Ctrl+Shift+X\` / \`Cmd+Shift+X\`), install:
+   - **PlatformIO IDE** (ID: \`platformio.platformio-ide\`)
+   - **Wokwi for VS Code** (ID: \`wokwi.wokwi-vscode\`)
+4. **Wait for PlatformIO to Initialize:**
+   PlatformIO will automatically detect \`platformio.ini\` and initialize the toolchains and dependencies (including \`ESP32Servo\`).
+5. **Run PlatformIO Build:**
+   Click the **Build** checkmark icon (\`✓\`) in the bottom PlatformIO status bar, or press \`Ctrl+Shift+P\` (\`Cmd+Shift+P\`) and run:
+   \`PlatformIO: Build\`
+   *(Note: The \`.pio/\` directory containing the compiled binary under \`.pio/build/esp32dev/firmware.bin\` is generated locally during this first build).*
+6. **Start Wokwi Simulator:**
+   Open \`diagram.json\`. Press \`F1\` (or \`Ctrl+Shift+P\`), type and run:
    \`Wokwi: Start Simulator\`
    *(Or click the green play button in the top right corner of the diagram view).*
-3. The interactive simulation circuit diagram will render, and the Serial Monitor will open automatically at **115200 baud**.
+7. **Open the Wokwi Terminal:**
+   Open the Serial Monitor / Wokwi Terminal at **115200 baud** to view real-time sensor readings and smart classroom telemetry.
 
 ---
 
 ## Interacting with the Simulation
 
-- **Adjust Temperature:** Click on any **DHT22** sensor in the diagram. Drag the temperature slider above **24.0 °C** to see the assigned zone's AC LED light up!
-- **Adjust Ambient Light:** Click on any **Photoresistor (LDR)** sensor. Adjust the lux slider below **400** to see zone lights turn ON.
-- **Trigger Motion:** Click on any **PIR sensor** to simulate student movement. Notice how fans and ACs respond to occupancy.
+- **Adjust Temperature:** Click on any **DHT22** sensor in the diagram. Drag the temperature slider above the threshold (default **24.0 °C**) to see the assigned zone's AC servo rotate from 0° to 90°!
+- **Adjust Ambient Light:** Click on any **Photoresistor (LDR)** sensor. Adjust the lux slider below the threshold (default **400**) to see zone light LEDs turn ON.
+- **Trigger Motion:** Click on any **PIR sensor** to simulate student movement. Notice how fan and AC servos rotate to 90° in response to occupancy.
 - **Serial Commands:** Open the Serial Monitor input bar and type:
   - \`TEMP 26.0\` — Update AC temperature threshold to 26.0 °C.
   - \`LIGHT 350\` — Update lighting threshold to 350.
   - \`COOL ON\` — Run AC when hot regardless of PIR occupancy.
-  - \`STATUS\` — Output an immediate telemetry report.
+  - \`COOL OFF\` — AC requires occupancy.
+  - \`STATUS\` — Output an immediate telemetry report with servo positions.
 
 ---
 
 ## Troubleshooting
 ${warnings.length > 0 ? `\n### Simulation Warnings\n${warnings.map((w) => `- ${w}`).join('\n')}\n` : ''}
-- **Missing Libraries:** If prompted by the compiler, ensure \`DHT sensor library\` and \`Adafruit Unified Sensor\` are present in \`libraries.txt\`.
+- **Missing Build Binary:** If Wokwi reports that firmware was not found, make sure you ran **PlatformIO: Build** first so that \`.pio/build/esp32dev/firmware.bin\` is created.
+- **Missing Libraries:** PlatformIO automatically installs dependencies listed in \`platformio.ini\` (\`adafruit/DHT sensor library\`, \`adafruit/Adafruit Unified Sensor\`, and \`madhephaestus/ESP32Servo\`).
 - **Serial Output:** Ensure Serial Monitor baud rate is set to **115200**.
 `
 }

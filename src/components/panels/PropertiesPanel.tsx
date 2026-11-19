@@ -1,11 +1,10 @@
-import { Copy, Eye, EyeOff, Lock, LockOpen, RotateCw, Trash2 } from 'lucide-react'
+import { Copy, RotateCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Field, NumberInput, Section, Slider, TextInput, Toggle } from '@/components/ui/controls'
+import { Field, NumberInput, Section, TextInput, Toggle } from '@/components/ui/controls'
 import { CATALOG } from '@/objects/catalog'
 import { placementIssue } from '@/objects/collision'
 import { placeOnWall, sideOfWall } from '@/objects/spaceFactory'
 import { seatCapacityOf } from '@/simulation/occupancy'
-import { setWindowState } from '@/store/windowActions'
 import { useEditor } from '@/store/editorStore'
 import { toast } from '@/store/uiStore'
 import type { SceneObject, Vec3, Wall } from '@/types'
@@ -35,28 +34,10 @@ function ObjectProps({ obj }: { obj: SceneObject }) {
   const remove = useEditor((s) => s.removeSelected)
   const rotate = useEditor((s) => s.rotateSelected)
   const wall: Wall | undefined = obj.wall ? space.walls.find((w) => w.id === obj.wall!.wallId) : undefined
-  const scale = obj.dims[0] / entry.dims[0]
   const setPos = (i: 0 | 1 | 2, v: number) => {
     const p = [...obj.position] as Vec3
     p[i] = v
     tryEdit(obj, { position: p })
-  }
-  const setDim = (i: 0 | 1 | 2, v: number) => {
-    const d = [...obj.dims] as Vec3
-    d[i] = Math.max(0.05, v)
-    if (obj.kind === 'column' || entry.mount === 'ceiling') {
-      // keep ceiling items hung from the ceiling when their height changes
-      const pos: Vec3 = entry.mount === 'ceiling' ? [obj.position[0], space.dims.height - d[1], obj.position[2]] : obj.position
-      return tryEdit(obj, { dims: d, position: pos })
-    }
-    tryEdit(obj, { dims: d })
-  }
-  const setScale = (s: number) => {
-    const f = Math.max(0.1, s)
-    const d: Vec3 = [entry.dims[0] * f, entry.dims[1] * f, entry.dims[2] * f]
-    if (entry.wallMounted && obj.wall) d[2] = obj.dims[2]
-    const pos: Vec3 = entry.mount === 'ceiling' ? [obj.position[0], space.dims.height - d[1], obj.position[2]] : obj.position
-    tryEdit(obj, { dims: d, position: pos })
   }
   const seatCap = seatCapacityOf(obj)
   return (
@@ -93,27 +74,6 @@ function ObjectProps({ obj }: { obj: SceneObject }) {
         )}
         {!obj.wall && <Field label="Rotation (°)"><NumberInput value={((deg(obj.rotationY) % 360) + 360) % 360} step={15} digits={0} disabled={obj.locked} onCommit={(v) => tryEdit(obj, { rotationY: rad(v) })} /></Field>}
       </Section>
-      <Section title="Size (m)">
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="Width"><NumberInput value={obj.dims[0]} step={0.1} min={0.05} disabled={obj.locked} onCommit={(v) => setDim(0, v)} /></Field>
-          <Field label="Height"><NumberInput value={obj.dims[1]} step={0.1} min={0.02} disabled={obj.locked} onCommit={(v) => setDim(1, v)} /></Field>
-          <Field label="Length"><NumberInput value={obj.dims[2]} step={0.1} min={0.05} disabled={obj.locked || !!obj.wall} onCommit={(v) => setDim(2, v)} /></Field>
-        </div>
-        <Field label={`Scale ${(scale * 100).toFixed(0)}% of default`}><Slider value={Math.min(3, Math.max(0.3, scale))} min={0.3} max={3} step={0.05} onChange={() => undefined} onCommit={setScale} disabled={obj.locked} /></Field>
-      </Section>
-      <Section title="Appearance & state">
-        {!entry.wallMounted && (
-          <Field label="Colour"><div className="flex items-center gap-2"><input type="color" value={obj.color ?? entry.color ?? '#999999'} onChange={(e) => update(obj.id, { color: e.target.value }, true)} onBlur={() => useEditor.getState().endTransient(true)} onPointerDown={() => useEditor.getState().beginTransient()} className="h-7 w-10 cursor-pointer rounded border border-slate-200" /><span className="text-[12px] text-slate-500">{obj.color ?? entry.color}</span></div></Field>
-        )}
-        <div className="flex items-center justify-between">
-          <Toggle checked={obj.visible} onChange={(visible) => update(obj.id, { visible })} label={obj.visible ? 'Visible' : 'Hidden'} />
-          {obj.visible ? <Eye size={14} className="text-slate-400" /> : <EyeOff size={14} className="text-slate-400" />}
-        </div>
-        <div className="flex items-center justify-between">
-          <Toggle checked={obj.locked} onChange={(locked) => update(obj.id, { locked })} label={obj.locked ? 'Locked' : 'Unlocked'} />
-          {obj.locked ? <Lock size={14} className="text-slate-400" /> : <LockOpen size={14} className="text-slate-400" />}
-        </div>
-      </Section>
       {entry.seat && (
         <Section title="Seating">
           <Toggle checked={!!obj.seatable} onChange={(seatable) => update(obj.id, { seatable })} label="People can sit here" />
@@ -126,15 +86,7 @@ function ObjectProps({ obj }: { obj: SceneObject }) {
           {obj.kind === 'bed' && <Field label="Bed occupancy"><NumberInput value={obj.seatCountOverride ?? 2} min={0} max={4} digits={0} step={1} onCommit={(n) => update(obj.id, { seatCountOverride: n })} /></Field>}
         </Section>
       )}
-      {obj.window && (
-        <Section title="Window">
-          <Toggle checked={obj.window.open} onChange={(open) => setWindowState(obj.id, open)} label={obj.window.open ? 'Open (ventilates)' : 'Closed'} />
-          <p className="text-[11px] leading-snug text-slate-500">Glass transmits daylight even when closed. Opening only adds ventilation / heat exchange.</p>
-          <Field label={`Glass transmittance ${(obj.window.transmittance * 100).toFixed(0)}%`}><Slider value={obj.window.transmittance} min={0} max={1} step={0.05} onChange={() => undefined} onCommit={(transmittance) => update(obj.id, { window: { ...obj.window!, transmittance } })} /></Field>
-          <Field label={`Shading ${(obj.window.shading * 100).toFixed(0)}%`}><Slider value={obj.window.shading} min={0} max={1} step={0.05} onChange={() => undefined} onCommit={(shading) => update(obj.id, { window: { ...obj.window!, shading } })} /></Field>
-          <Field label="Solar heat gain coefficient"><NumberInput value={obj.window.shgc} step={0.05} min={0} max={1} onCommit={(shgc) => update(obj.id, { window: { ...obj.window!, shgc } })} /></Field>
-        </Section>
-      )}
+
       {obj.device && <DevicePanel obj={obj} />}
       <div className="h-6" />
       <button className="hidden" onClick={() => select([])} />

@@ -10,8 +10,24 @@ export interface ZoneInfo {
   acIds: string[]
   fanIds: string[]
   lightIds: string[]
+  sensorIds?: string[]
+  deviceIds?: string[]
   /** thermal coverage of the zone as designed */
   coverage: 'cooled' | 'fan-only' | 'uncovered'
+  /** 1-based index of the parent AC zone, or null if no ACs */
+  acZoneId?: number | null
+  /** assigned parent AC object ID, if any */
+  acId?: string | null
+  /** assigned parent AC name, if any */
+  acName?: string | null
+  /** assigned Fan object ID, if any */
+  fanId?: string | null
+  /** assigned Fan name, if any */
+  fanName?: string | null
+  /** 1-based subzone index within the parent AC zone, or null if no fan */
+  fanSubzoneId?: number | null
+  /** formatted relationship label, e.g. "AC 1 · Fan 1" or "AC Zone 1" */
+  label?: string
 }
 
 export interface OccupantCoverage {
