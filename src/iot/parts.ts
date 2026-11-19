@@ -54,7 +54,7 @@ export const PARTS: Record<PartType, PartSpec> = {
     terminals: [t('VCC', 'power'), t('OUT', 'signal'), t('GND', 'ground')],
     helpers: [],
     libraries: { arduino: [], python: ['gpiozero'] },
-    notes: ['Needs the 5 V supply, but its OUT pin is 3.3 V, so it is safe for ESP32 / Raspberry Pi inputs.', 'Detects MOTION, not how many people are sitting: it cannot give a seat count.'],
+    notes: ['Needs the 5 V supply, but its OUT pin is 3.3 V, so it is safe for ESP32 inputs.', 'Detects MOTION, not how many people are sitting: it cannot give a seat count.'],
   },
   led: {
     type: 'led', label: 'LED + series resistor', model: '5 mm LED with resistor', category: 'actuator',
@@ -101,7 +101,7 @@ export const PARTS: Record<PartType, PartSpec> = {
     terminals: [t('VDD', 'power'), t('SDA', 'sda'), t('SCL', 'scl'), t('GND', 'ground')],
     helpers: ['ADDR pin wired to GND / VDD / SDA / SCL selects 0x48–0x4B'],
     libraries: { arduino: ['Adafruit ADS1X15'], python: ['adafruit-circuitpython-ads1x15'] },
-    notes: ['4 single-ended inputs; the only way for a Raspberry Pi to read an analog LDR.', 'Inputs must stay below VDD.'],
+    notes: ['4 single-ended inputs; adds precision analog channels when controller ADC pins run out.', 'Inputs must stay below VDD.'],
   },
 }
 

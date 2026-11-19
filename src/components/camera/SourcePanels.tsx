@@ -12,11 +12,11 @@ function runtimeOf(): NonNullable<ReturnType<typeof getRuntime>> | undefined {
   return getRuntime(ensureActiveCamera())
 }
 
-export const IMAGE_TYPES = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
-export const VIDEO_TYPES = 'video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov'
+const IMAGE_TYPES = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
+const VIDEO_TYPES = 'video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov'
 
 /** Load a picked file into the active camera. Returns false when the type is not accepted. */
-export async function openMediaFile(file: File, as: 'image' | 'video' | 'auto' = 'auto'): Promise<boolean> {
+async function openMediaFile(file: File, as: 'image' | 'video' | 'auto' = 'auto'): Promise<boolean> {
   const rt = runtimeOf()
   if (!rt) return false
   const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(file.name)

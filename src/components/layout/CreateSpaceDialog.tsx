@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, NumberInput, SelectBox, TextInput } from '@/components/ui/controls'
 import { Modal } from '@/components/ui/dialog'
-import { SPACE_TYPES, UNITS } from '@/components/panels/SpacePanel'
 import { getRepository } from '@/database/repository'
 import { navigate } from '@/hooks/useHashRoute'
 import { createSpace } from '@/objects/spaceFactory'
 import { toast } from '@/store/uiStore'
-import type { Dimensions, LengthUnit, SpaceType } from '@/types'
+import { SPACE_TYPES, UNITS, type Dimensions, type LengthUnit, type SpaceType } from '@/types'
 import { fromMeters, toMeters } from '@/utils/units'
 
 const PRESETS: Record<SpaceType, Dimensions> = {

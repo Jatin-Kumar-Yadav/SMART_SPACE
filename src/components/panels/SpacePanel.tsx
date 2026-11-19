@@ -1,42 +1,7 @@
 import { Field, NumberInput, Section, SelectBox, TextInput } from '@/components/ui/controls'
-import { exportProject, serializeProject } from '@/database/projectIO'
-import { getRepository } from '@/database/repository'
 import { useEditor } from '@/store/editorStore'
-import { toast } from '@/store/uiStore'
-import type { LengthUnit, SpaceType } from '@/types'
+import { SPACE_TYPES, type SpaceType } from '@/types'
 import { formatLength, fromMeters, toMeters } from '@/utils/units'
-
-export const SPACE_TYPES: { value: SpaceType; label: string }[] = [
-  { value: 'classroom', label: 'Classroom' },
-  { value: 'seminar-hall', label: 'Seminar Hall' },
-  { value: 'auditorium', label: 'Auditorium' },
-  { value: 'office', label: 'Office' },
-  { value: 'conference-room', label: 'Conference Room' },
-  { value: 'house', label: 'House' },
-  { value: 'custom', label: 'Custom' },
-]
-export const UNITS: { value: LengthUnit; label: string }[] = [
-  { value: 'm', label: 'Metres' },
-  { value: 'cm', label: 'Centimetres' },
-  { value: 'ft', label: 'Feet' },
-]
-
-export function downloadText(name: string, text: string, mime = 'application/json') {
-  const url = URL.createObjectURL(new Blob([text], { type: mime }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-export async function exportCurrentSpace() {
-  const space = useEditor.getState().space
-  if (!space) return
-  const file = await exportProject(space, getRepository())
-  downloadText(`${space.name.replace(/[^\w-]+/g, '_')}.smartspace.json`, serializeProject(file))
-  toast('Project exported as JSON', 'success')
-}
 
 export function SpacePanel() {
   const space = useEditor((s) => s.space!)

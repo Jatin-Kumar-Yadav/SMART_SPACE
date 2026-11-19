@@ -27,7 +27,7 @@ export function LiveTab() {
   const [ok2, setOk2] = useState(false)
   if (!plan || !cfg) return <Empty text="Generate the hardware setup first. Live Data maps incoming sensor values and outgoing commands onto it." />
   const mode = cfg.runMode
-  const now = Date.now() + 0 * live.tick
+  const now = live.now || 0
   const connected = live.link === 'connected'
   const sensors = plan.parts.filter((p) => p.sensorId)
   const actuators = plan.parts.filter((p) => p.virtual)

@@ -62,3 +62,8 @@ export const ZONE_PALETTE: RGB[] = [
   [249, 115, 22],
   [100, 116, 139],
 ]
+
+/** Categorical slots from the validated reference palette (fixed order, never cycled). */
+export const CHART_SERIES = { blue: '#2a78d6', orange: '#eb6834', aqua: '#1baf7a', violet: '#6250d6', yellow: '#c98500' } as const
+export const SERIES = CHART_SERIES
+

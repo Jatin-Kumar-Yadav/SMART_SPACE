@@ -233,7 +233,7 @@ function MappingTab() {
   const showFrustum = useCameraUi((s) => s.showFrustum)
   const ui = useCameraUi((s) => s.set)
   const states = useCameraUi((s) => s.states)
-  const seats = unionCommitted(Date.now(), Infinity)
+  const seats = unionCommitted(0, Infinity)
   void states
   return (
     <>

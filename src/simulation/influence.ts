@@ -54,8 +54,9 @@ export function influenceLocal(
   return lateral * profileValue(profile, lz * scale)
 }
 
+const EMPTY_PROFILE: ProfilePoint[] = []
 export const shapeOf = (d: AirDevice): InfluenceShape => (d.type === 'fan' ? 'circle' : d.shape)
-export const profileOf = (d: AirDevice): ProfilePoint[] => (d.type === 'ac' ? d.profile : [])
+export const profileOf = (d: AirDevice): ProfilePoint[] => (d.type === 'ac' ? d.profile : EMPTY_PROFILE)
 
 /** Influence of `obj` (a fan or AC) at world position (x, z) for the given level. */
 export function influenceAt(obj: SceneObject, level: AirLevel, x: number, z: number): number {

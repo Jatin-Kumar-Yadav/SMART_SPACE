@@ -197,7 +197,7 @@ describe('coverage & zones', () => {
     space.objects.push(door)
     const open = buildGrid(space, 'standard')
     expect(open.linkEast[3 * open.nx + 4]).toBe(1)
-    expect(open.linkEast[0 * open.nx + 4]).toBeLessThan(0.1)
+    expect(open.linkEast[4]).toBeLessThan(0.1)
   })
 })
 

@@ -9,6 +9,8 @@ export function downloadBlob(name: string, data: BlobPart, type = 'text/plain') 
   setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
+export const downloadText = (name: string, text: string, mime = 'application/json') => downloadBlob(name, text, mime)
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)

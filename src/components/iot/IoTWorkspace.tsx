@@ -9,11 +9,16 @@ import { CircuitView } from './CircuitView'
 import { CodePanel } from './CodePanel'
 import { DevicePanel } from './DevicePanel'
 import { Hardware3DView } from './Hardware3DView'
-import { PinsPanel } from './PlanPanels'
+import { ComponentsPanel, PinsPanel, ValidationPanel } from './PlanPanels'
+import { LiveTab } from './LiveTab'
+import { BottomLog } from './BottomLog'
 
 const TABS: [IotTab, string][] = [
   ['code', 'Code'],
   ['pins', 'Pin Mapping'],
+  ['components', 'Components'],
+  ['validation', 'Validation'],
+  ['live', 'Live Data'],
 ]
 
 export function IoTWorkspace() {
@@ -27,10 +32,10 @@ export function IoTWorkspace() {
 
   useEffect(() => {
     ensureHardware()
-    if (space.hardware?.controller === 'rpi') {
+    if (space.hardware && (space.hardware.controller as string) !== 'esp32') {
       updateHardware({ controller: 'esp32', pinOverrides: {} })
     }
-  }, [space.hardware?.controller])
+  }, [space.hardware])
   if (!cfg) return <main className="grid min-w-0 flex-1 place-items-center text-slate-500">Preparing hardware settings…</main>
 
   return (
@@ -131,7 +136,7 @@ export function IoTWorkspace() {
           <aside className="flex w-[410px] shrink-0 flex-col border-l border-slate-200 bg-white" aria-label="Hardware details">
             <div role="tablist" className="flex border-b border-slate-200">
               {TABS.map(([id, label]) => {
-                const active = (tab === id) || (tab !== 'pins' && id === 'code')
+                const active = tab === id
                 return (
                   <button
                     key={id}
@@ -150,10 +155,15 @@ export function IoTWorkspace() {
               })}
             </div>
             <div className="min-h-0 flex-1">
-              {tab === 'pins' ? <PinsPanel /> : <CodePanel />}
+              {tab === 'pins' && <PinsPanel />}
+              {tab === 'components' && <ComponentsPanel />}
+              {tab === 'validation' && <ValidationPanel />}
+              {tab === 'live' && <LiveTab />}
+              {tab === 'code' && <CodePanel />}
             </div>
           </aside>
         </div>
+        {tab === 'live' && <BottomLog />}
       </main>
     </>
   )

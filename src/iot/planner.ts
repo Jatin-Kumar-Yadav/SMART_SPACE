@@ -6,7 +6,7 @@ import type { BomLine, Channel, Controller, ExternalSupply, HardwarePlan, Issue,
 import { validatePlan } from './validate'
 
 const MAX_CONTROLLERS = 8
-const FAMILY_NAME = { esp32: 'ESP32', uno: 'Arduino Uno', rpi: 'Raspberry Pi' } as const
+const FAMILY_NAME = { esp32: 'ESP32 DevKit' } as const
 const LABEL = (n: number) => String.fromCharCode(97 + n) // a, b, c …
 
 /** Which controller rail powers a part's VCC. */
@@ -112,16 +112,11 @@ export function place(family: Controller['family'], reqs: Requirement[]): Placem
   const adcReqs = by('adc')
   const pwmReqs = by('pwm')
 
-  if (family === 'uno' && reqs.length > 14) return { ok: false, reason: `an Arduino Uno has only 2 KB of RAM and cannot manage ${reqs.length} channels` }
-
-  const i2cFixed = i2cSensors.length > 0
   const i2cPins = board.i2cDefault!
   const used = new Set<string>()
   const eligible = (p: (typeof board.pins)[number], fn: Parameters<typeof pinSupports>[1]) => {
     if (used.has(p.id)) return false
-    // Uno: A4/A5 are ordinary pins unless the I²C bus is needed
-    const q = family === 'uno' && !i2cFixed ? { ...p, sda: false, scl: false } : p
-    return pinSupports(q, fn, wifiOn)
+    return pinSupports(p, fn, wifiOn)
   }
   const pick = (fn: 'pwm' | 'adc' | 'digital-in' | 'digital-io' | 'onewire', prefer?: string) => {
     const list = board.pins.filter((p) => eligible(p, fn)).sort((a, b) => (a.id === prefer ? -1 : b.id === prefer ? 1 : pinPreference(a, fn === 'digital-io' || fn === 'onewire' ? 'digital-io' : fn) - pinPreference(b, fn === 'digital-io' || fn === 'onewire' ? 'digital-io' : fn)))
@@ -160,15 +155,11 @@ export function place(family: Controller['family'], reqs: Requirement[]): Placem
   const pwmOverflow: Requirement[] = []
   for (const r of pwmReqs) {
     // the ESP32 LEDC peripheral has 16 channels, however many pins could carry PWM
-    const p = family === 'esp32' && pwmGpio >= 16 ? undefined : pick('pwm')
+    const p = pwmGpio >= 16 ? undefined : pick('pwm')
     if (p) { used.add(p.id); slots.push({ req: r, fn: 'pwm-out', pinId: p.id }); pwmGpio++ } else pwmOverflow.push(r)
   }
 
   // ── expanders ──
-  const canExpand = family !== 'uno'
-  if ((pwmOverflow.length || adcOverflow) && !canExpand) {
-    return { ok: false, reason: pwmOverflow.length ? `out of PWM pins (an Uno has 6) and it cannot take expanders` : 'out of analog inputs on an Uno' }
-  }
   let pcaCount = 0
   if (pwmOverflow.length) {
     pcaCount = Math.ceil(pwmOverflow.length / 16)
@@ -192,7 +183,6 @@ export function place(family: Controller['family'], reqs: Requirement[]): Placem
     if (!conflict) {
       for (const [t, rs] of counts) rs.forEach((r, i) => { addr[r.part.id] = I2C_ADDR[t]![i] })
     } else {
-      if (!canExpand) return { ok: false, reason: 'two identical I²C sensors share an address and an Uno setup here does not use a multiplexer' }
       if (i2cSensors.length > 8) return { ok: false, reason: `${i2cSensors.length} I²C sensors do not fit behind one TCA9548A (8 channels)` }
       expanders.push({ type: 'tca9548a', addr: PARTS.tca9548a.i2c![0] })
       i2cSensors.forEach((r, i) => { mux[r.part.id] = i; addr[r.part.id] = I2C_ADDR[r.part.type]![0] })
@@ -401,9 +391,8 @@ export function buildPlan(space: Space, cfg: HardwareConfig): HardwarePlan {
   if (chosen.length === 1) reasons.push(`One ${FAMILY_NAME[family]} covers all ${draft.reqs.length} channels.`)
   const expanderTotals = { pca9685: counters.pca9685, ads1115: counters.ads1115, tca9548a: counters.tca9548a }
   if (expanderTotals.pca9685) reasons.push(`${expanderTotals.pca9685} PCA9685 board(s) add PWM channels over I²C once the controller's own PWM pins are used.`)
-  if (expanderTotals.ads1115) reasons.push(`${expanderTotals.ads1115} ADS1115 board(s) add analog inputs (${family === 'rpi' ? 'a Raspberry Pi has none' : 'the controller ran out of ADC pins'}).`)
+  if (expanderTotals.ads1115) reasons.push(`${expanderTotals.ads1115} ADS1115 board(s) add analog inputs (the controller ran out of ADC pins).`)
   if (expanderTotals.tca9548a) reasons.push('A TCA9548A multiplexer lets several identical I²C sensors share one bus although their addresses would clash.')
-  if (family === 'uno') reasons.push('The Uno has no Wi-Fi: it reports over USB serial and needs a gateway (ESP32 / Raspberry Pi / PC) to reach the MQTT broker.')
 
   // mapping table
   const nameOf = (id: string) => draft.devices.find((d) => d.obj.id === id)?.obj.name ?? id

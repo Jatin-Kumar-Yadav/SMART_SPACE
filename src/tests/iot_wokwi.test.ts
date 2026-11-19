@@ -8,7 +8,7 @@ import { defaultHardware } from '@/iot/requirements'
 import { generateWokwi, generateWokwiZip, WOKWI_ZIP_ROOT, wokwiSupport } from '@/iot/wokwi'
 import { createObject } from '@/objects/catalog'
 import { createSpace } from '@/objects/spaceFactory'
-import type { ControllerFamily, HardwareConfig, ObjectKind, SensorPoint, Space } from '@/types'
+import type { HardwareConfig, ObjectKind, SensorPoint, Space } from '@/types'
 
 function room(kinds: ObjectKind[]): Space {
   const s = createSpace({ name: 'T', type: 'classroom', dims: { length: 10, width: 8, height: 3 } })
@@ -70,21 +70,13 @@ describe('Wokwi export', () => {
     const c = spawnSync('g++', ['-fsyntax-only', '-std=gnu++17', `-I${resolve(__dirname, 'stubs')}`, f], { encoding: 'utf8' })
     expect(c.status, c.stderr.slice(0, 1500)).toBe(0)
   })
-  it('refuses Raspberry Pi and plans that need PCA9685 / ADS1115 / TCA9548A, with a reason', () => {
-    const rpi = plan(['ceilingFan', 'ceilingLight'], { controller: 'rpi' as ControllerFamily })
-    expect(wokwiSupport(rpi)).toMatchObject({ ok: false })
-    const r = generateWokwi(rpi, { spaceId: 'x' })
-    expect(r.ok).toBe(false)
+  it('refuses plans that need PCA9685 / ADS1115 / TCA9548A, with a reason', () => {
     const many = plan(Array<ObjectKind>(20).fill('ceilingLight'))
+    expect(wokwiSupport(many)).toMatchObject({ ok: false })
     const w = generateWokwi(many, { spaceId: 'x' })
     expect(many.parts.some((x) => x.type === 'pca9685')).toBe(true)
     expect(w.ok).toBe(false)
     if (!w.ok) expect(w.reason).toMatch(/PCA9685/)
-  })
-  it('supports an Arduino Uno export', () => {
-    const r = generateWokwi(plan(['ceilingFan', 'ceilingLight'], { controller: 'uno' as ControllerFamily }), { spaceId: 'x' })
-    expect(r.ok).toBe(true)
-    if (r.ok) { expect(r.board).toBe('uno'); expect(r.openUrlVerified).toBe(false) }
   })
 })
 

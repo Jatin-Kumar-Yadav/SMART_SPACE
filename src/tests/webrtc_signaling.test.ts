@@ -35,7 +35,7 @@ function client(url: string) {
     ws,
     ready: new Promise<void>((r, j) => { ws.on('open', () => r()); ws.on('error', j) }),
     send: (m: unknown) => ws.send(JSON.stringify(m)),
-    next: () => new Promise<Record<string, unknown>>((r) => { const m = inbox.shift(); m ? r(m) : waiters.push(r) }),
+    next: () => new Promise<Record<string, unknown>>((r) => { const m = inbox.shift(); if (m) r(m); else waiters.push(r) }),
     closed: new Promise<number>((r) => ws.on('close', (c) => r(c))),
   }
 }

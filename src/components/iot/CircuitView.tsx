@@ -1,7 +1,7 @@
 import { Layers, Maximize2, Minus, Plus, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { layoutCircuit, NET_COLOUR, type CTone } from '@/iot/circuit'
+import { getPartDims, getPinOffset, layoutCircuit, NET_COLOUR, type CTone } from '@/iot/circuit'
 import type { HardwarePlan } from '@/iot/types'
 import { generateWokwi } from '@/iot/wokwi'
 import { useIot } from '@/store/iotStore'
@@ -9,14 +9,11 @@ import {
   Dht22Artwork,
   Ds18b20Artwork,
   Esp32Artwork,
-  getPartDims,
-  getPinOffset,
   LdrArtwork,
   LedArtwork,
   PirArtwork,
   ResistorArtwork,
   ServoArtwork,
-  UnoArtwork,
 } from './WokwiComponents'
 
 interface WokwiPart {
@@ -109,7 +106,7 @@ export function CircuitView({
     return null
   }, [wokwiStore, ctrl, plan, tempThreshold, lightThreshold])
 
-  // Fallback schematic layout (for unsupported controllers like Raspberry Pi or if toggled)
+  // Fallback schematic layout (when breadboard view is not active)
   const schematicLayout = useMemo(() => layoutCircuit(plan, ctrl), [plan, ctrl])
 
   // Compute bounding box of the Wokwi diagram for auto-fit and centering
@@ -499,8 +496,6 @@ function renderWokwiPart(part: WokwiPart, selected: boolean) {
     case 'board-esp32-devkit-c-v4':
     case 'wokwi-esp32-devkit-v1':
       return <Esp32Artwork id={part.id} selected={selected} />
-    case 'wokwi-arduino-uno':
-      return <UnoArtwork selected={selected} />
     case 'wokwi-dht22':
       return <Dht22Artwork attrs={part.attrs} selected={selected} />
     case 'wokwi-photoresistor-sensor':

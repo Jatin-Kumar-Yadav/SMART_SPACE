@@ -33,6 +33,7 @@ interface LiveState {
   mirror: boolean
   /** bumped once per second so freshness badges age without new messages */
   tick: number
+  now: number
   set: (p: Partial<Pick<LiveState, 'token' | 'mirror'>>) => void
 }
 
@@ -53,6 +54,7 @@ export const useLive = create<LiveState>((set) => ({
   log: [],
   mirror: true,
   tick: 0,
+  now: 0,
   set: (p) => {
     if (p.token !== undefined) { try { sessionStorage.setItem(TOKEN_KEY, p.token) } catch { /* private mode */ } }
     set(p)
@@ -274,7 +276,7 @@ function loop() {
   const now = Date.now()
   for (const c of book.expire(now)) log('sys', `No acknowledgement for ${c.type}${c.actuator ? ` ${c.actuator}` : ''} within ${ACK_TIMEOUT_MS / 1000} s: NOT confirmed`)
   syncBook()
-  useLive.setState((s) => ({ tick: s.tick + 1 }))
+  useLive.setState((s) => ({ tick: s.tick + 1, now }))
   const st = useLive.getState()
   if (mode() !== 'control' || st.link !== 'connected' || !st.plan) return
   for (const ctrl of st.plan.controllers) {

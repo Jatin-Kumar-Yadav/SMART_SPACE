@@ -4,8 +4,8 @@ import * as THREE from 'three'
 import { useEditor } from '@/store/editorStore'
 import { useHover } from '@/store/hoverStore'
 import { useSim } from '@/store/simStore'
-import type { FloorMaterial, SceneObject, Space, Wall } from '@/types'
-import { wallLength, wallYaw } from '@/utils/geometry'
+import type { FloorMaterial, SceneObject, Wall } from '@/types'
+import { wallYaw } from '@/utils/geometry'
 import { FLOOR_PRESETS, floorGeometry } from '../textures'
 import { sceneApi } from '../sceneApi'
 import { useFloorTexture } from '../useFloorTexture'
@@ -254,6 +254,3 @@ export function WallCutter() {
   })
   return null
 }
-
-export { wallLength }
-export type { Space }

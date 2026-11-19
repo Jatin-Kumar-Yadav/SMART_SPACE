@@ -33,7 +33,7 @@ export type WokwiResult =
   | {
       ok: true
       controllerId: string
-      board: 'esp32' | 'uno'
+      board: 'esp32'
       files: WokwiFiles
       substitutions: Substitution[]
       warnings: string[]
@@ -55,9 +55,6 @@ const NOT_SUPPORTED: Partial<Record<PartType, string>> = {
 }
 
 export function wokwiSupport(plan: HardwarePlan, controllerId?: string): { ok: true } | { ok: false; reason: string } {
-  if (plan.family === 'rpi') {
-    return { ok: false, reason: 'Wokwi supports the Raspberry Pi Pico family, not a full Raspberry Pi 3/4/5, so this controller cannot be exported. Use the Python script on real hardware.' }
-  }
   const ctrl = controllerId ?? plan.controllers[0]?.id
   if (!ctrl) {
     return { ok: false, reason: 'There is no controller in the plan yet. Generate the hardware setup first.' }
@@ -71,12 +68,11 @@ export function wokwiSupport(plan: HardwarePlan, controllerId?: string): { ok: t
 }
 
 /** Wokwi pin name for one of our pin ids. */
-function wPin(family: 'esp32' | 'uno', id: string): string {
+function wPin(id: string): string {
   if (id === 'GND') return 'GND.1'
   if (id === '3V3') return '3V3'
   if (id === '5V') return '5V'
-  if (family === 'esp32') return id.replace('GPIO', '')
-  return id.startsWith('D') ? id.slice(1) : id
+  return id.replace('GPIO', '')
 }
 
 /** Replace the parts Wokwi does not have, re-allocating pins where the substitute needs a different kind. */
@@ -175,7 +171,6 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
   if (!sup.ok) return sup
 
   const ctrl = opts.controllerId ?? plan.controllers[0].id
-  const family = plan.family as 'esp32' | 'uno'
   const { plan: sp, subs, warnings } = substitute(plan, ctrl)
   const boardId = 'mcu'
 
@@ -183,7 +178,7 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
   const boardLeft = 320
   const boardTop = 160
   const parts: Record<string, unknown>[] = [
-    { type: BOARDS[family].wokwiType, id: boardId, top: boardTop, left: boardLeft, attrs: {} }
+    { type: BOARDS.esp32.wokwiType, id: boardId, top: boardTop, left: boardLeft, attrs: {} }
   ]
   const wires: [string, string, string, string[]][] = []
   const wire = (a: string, b: string, c: string) => wires.push([a, b, c, []])
@@ -191,9 +186,9 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
   const mine = sp.parts.filter((x) => x.controllerId === ctrl)
   const gpioPin = (id: string) => {
     const ch = sp.channels[id]
-    return ch?.kind === 'gpio' ? wPin(family, ch.pinId) : ''
+    return ch?.kind === 'gpio' ? wPin(ch.pinId) : ''
   }
-  const vcc = family === 'esp32' ? '3V3' : '5V'
+  const vcc = '3V3'
 
   // Partition components into logical groups for a clean, readable layout
   const sensors = mine.filter((p) => PARTS[p.type].category === 'sensor' || p.type === 'dht22' || p.type === 'ldr' || p.type === 'pir' || p.type === 'ds18b20')
@@ -360,8 +355,8 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
   // Generate runnable Arduino C++ simulation firmware
   const sketch = generateSimulationSketch(sp, ctrl, opts)
   const libs = ['DHT sensor library', 'Adafruit Unified Sensor', 'ESP32Servo']
-  const pioIni = generatePlatformIOIni(family)
-  const toml = generateWokwiToml(family)
+  const pioIni = generatePlatformIOIni()
+  const toml = generateWokwiToml()
   const gitignore = generateGitignore()
   const extensionsJson = JSON.stringify({
     recommendations: [
@@ -384,12 +379,12 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
     dependencies: {}
   }
 
-  const readme = generateReadme(ctrl, family, sp, subs, warnings)
+  const readme = generateReadme(ctrl, sp, subs, warnings)
 
   return {
     ok: true,
     controllerId: ctrl,
-    board: family,
+    board: 'esp32',
     files: {
       'src/main.cpp': sketch,
       'diagram.json': JSON.stringify(diagram, null, 2),
@@ -404,8 +399,8 @@ export function generateWokwi(plan: HardwarePlan, opts: WokwiOptions): WokwiResu
     },
     substitutions: subs,
     warnings,
-    openUrl: family === 'esp32' ? 'https://wokwi.com/projects/new/esp32' : 'https://wokwi.com/projects/new/arduino-uno',
-    openUrlVerified: family === 'esp32',
+    openUrl: 'https://wokwi.com/projects/new/esp32',
+    openUrlVerified: true,
   }
 }
 
@@ -429,9 +424,8 @@ export function generateWokwiZip(wk: Extract<WokwiResult, { ok: true }>): Uint8A
   return makeZip(entries)
 }
 
-function generatePlatformIOIni(family: 'esp32' | 'uno'): string {
-  if (family === 'esp32') {
-    return `; PlatformIO Project Configuration File for SMART_SPACE ESP32 Wokwi Simulation
+function generatePlatformIOIni(): string {
+  return `; PlatformIO Project Configuration File for SMART_SPACE ESP32 Wokwi Simulation
 ; https://docs.platformio.org/page/projectconf.html
 
 [env:esp32dev]
@@ -444,37 +438,15 @@ lib_deps =
     adafruit/Adafruit Unified Sensor @ ^1.1.14
     madhephaestus/ESP32Servo @ ^3.0.6
 `
-  }
-  return `; PlatformIO Project Configuration File for SMART_SPACE Arduino Uno Wokwi Simulation
-; https://docs.platformio.org/page/projectconf.html
-
-[env:uno]
-platform = atmelavr
-board = uno
-framework = arduino
-monitor_speed = 115200
-lib_deps =
-    adafruit/DHT sensor library @ ^1.4.6
-    adafruit/Adafruit Unified Sensor @ ^1.1.14
-`
 }
 
-function generateWokwiToml(family: 'esp32' | 'uno'): string {
-  if (family === 'esp32') {
-    return `# Wokwi for VS Code Configuration
+function generateWokwiToml(): string {
+  return `# Wokwi for VS Code Configuration
 # Points to compiled PlatformIO firmware binary and ELF files
 [wokwi]
 version = 1
 firmware = ".pio/build/esp32dev/firmware.bin"
 elf = ".pio/build/esp32dev/firmware.elf"
-`
-  }
-  return `# Wokwi for VS Code Configuration
-# Points to compiled PlatformIO firmware HEX and ELF files
-[wokwi]
-version = 1
-firmware = ".pio/build/uno/firmware.hex"
-elf = ".pio/build/uno/firmware.elf"
 `
 }
 
@@ -891,7 +863,7 @@ function generateSimulationSketch(plan: HardwarePlan, ctrl: string, opts: WokwiO
 }
 
 /** Generates clear, step-by-step instructions for running in Wokwi for VS Code */
-function generateReadme(ctrl: string, family: string, plan: HardwarePlan, subs: Substitution[], warnings: string[]): string {
+function generateReadme(ctrl: string, plan: HardwarePlan, subs: Substitution[], warnings: string[]): string {
   const parts = plan.parts.filter((p) => p.controllerId === ctrl)
   const acs = parts.filter((p) => p.virtual?.kind === 'ac' || p.id.startsWith('ac'))
   const fans = parts.filter((p) => p.virtual?.kind === 'fan' || p.id.startsWith('fan'))
@@ -904,7 +876,7 @@ function generateReadme(ctrl: string, family: string, plan: HardwarePlan, subs: 
 
 This project simulates the IoT hardware and smart control system for your classroom using **PlatformIO** and **Wokwi for VS Code**.
 
-**Target Controller:** ${ctrl} (${BOARDS[family as 'esp32' | 'uno'].name})
+**Target Controller:** ${ctrl} (${BOARDS.esp32.name})
 
 ---
 
@@ -912,7 +884,7 @@ This project simulates the IoT hardware and smart control system for your classr
 
 | Category | Component / Indicator | Quantity |
 | :--- | :--- | :--- |
-| **Controller** | ${BOARDS[family as 'esp32' | 'uno'].name} | 1 |
+| **Controller** | ${BOARDS.esp32.name} | 1 |
 | **AC Servos** | SG90 Micro Servo Motors (0° = OFF, 90° = ON) | ${acs.length} |
 | **Fan Servos** | SG90 Micro Servo Motors (0° = OFF, 90° = ON) | ${fans.length} |
 | **Light Control Outputs** | Yellow Indicator LEDs (220 Ω resistors) | ${lights.length} |

@@ -7,7 +7,7 @@ import { configureFloorTexture, presetTexture } from './textures'
 const uploaded = new Map<string, Promise<THREE.Texture | null>>()
 
 /** Load an uploaded texture (stored as a Blob in IndexedDB) once and cache it. */
-export function loadUploadedTexture(id: string): Promise<THREE.Texture | null> {
+function loadUploadedTexture(id: string): Promise<THREE.Texture | null> {
   let p = uploaded.get(id)
   if (!p) {
     p = getRepository()
@@ -33,9 +33,6 @@ export function loadUploadedTexture(id: string): Promise<THREE.Texture | null> {
   return p
 }
 
-/** Forget a cached upload (after it was deleted or replaced). */
-export const forgetUploadedTexture = (id: string) => uploaded.delete(id)
-
 /**
  * Texture for a floor material: a procedural preset or an uploaded image.
  * UVs of the floor geometry are measured in tiles, so the texture repeats
@@ -46,7 +43,6 @@ export function useFloorTexture(m: FloorMaterial): THREE.Texture | null {
   useEffect(() => {
     let alive = true
     if (m.textureId) {
-      setSrc(null)
       loadUploadedTexture(m.textureId).then((t) => alive && setSrc(t ?? presetTexture(m.preset)))
     } else {
       setSrc(presetTexture(m.preset))

@@ -5,27 +5,15 @@ import { TextInput } from '@/components/ui/controls'
 import { Modal } from '@/components/ui/dialog'
 import { exportProject, importProject, parseProject, serializeProject } from '@/database/projectIO'
 import { getRepository } from '@/database/repository'
-import { DEMO_SPACE_ID, createSeminarHall } from '@/demo/seminarHall'
+import { DEMO_SPACE_ID } from '@/demo/seminarHall'
+import { installDemo } from '@/demo/installDemo'
 import { navigate } from '@/hooks/useHashRoute'
 import { toast } from '@/store/uiStore'
-import { renderSpaceThumbnail } from '@/three/thumbnails'
-import type { SpaceSummary } from '@/types'
-import { downloadText, SPACE_TYPES } from '@/components/panels/SpacePanel'
+import { SPACE_TYPES, type SpaceSummary } from '@/types'
+import { downloadText } from '@/components/iot/download'
 import { CreateSpaceDialog } from './CreateSpaceDialog'
 
 const SEEDED = 'smartspace3d.demoSeeded'
-
-/** Create (or restore) the Seminar Hall demo project. */
-export async function installDemo() {
-  const demo = { ...createSeminarHall(), id: DEMO_SPACE_ID }
-  try {
-    demo.thumbnail = renderSpaceThumbnail(demo)
-  } catch (e) {
-    console.warn('demo thumbnail failed', e)
-  }
-  await getRepository().save(demo)
-  return demo
-}
 
 const ago = (t: number) => {
   const m = Math.round((Date.now() - t) / 60000)

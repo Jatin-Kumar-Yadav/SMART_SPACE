@@ -3,17 +3,18 @@ import * as THREE from 'three'
 import { currentLevel, influenceLocal, isAirDevice, profileOf, regionBounds, shapeOf } from '@/simulation/influence'
 import { useEditor } from '@/store/editorStore'
 import { useSim } from '@/store/simStore'
-import type { AirLevel, SceneObject } from '@/types'
+import type { AirLevel, ProfilePoint, SceneObject } from '@/types'
 import { beginInfluenceDrag, previewLevelIndex } from '../scene/interaction'
 
 const N = 160
+const EMPTY_PROFILE: ProfilePoint[] = []
 
 /** Paint the influence field of a device into a canvas texture (alpha ∝ influence). */
 function useInfluenceTexture(obj: SceneObject, level: AirLevel, color: string) {
   const d = obj.device
   const air = isAirDevice(d) ? d : null
   const shape = air ? shapeOf(air) : 'circle'
-  const prof = air ? profileOf(air) : []
+  const prof = air ? profileOf(air) : EMPTY_PROFILE
   const bounds = useMemo(() => (air ? regionBounds(air, level) : { minX: -1, maxX: 1, minZ: -1, maxZ: 1 }), [air, level]) // eslint-disable-line react-hooks/exhaustive-deps
   const tex = useMemo(() => {
     const canvas = document.createElement('canvas')

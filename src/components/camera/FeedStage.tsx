@@ -20,7 +20,7 @@ const STATUS_COLOR: Record<TrackStatus, string> = {
 }
 
 /** Default world position offered for the next clicked point: the four room corners first. */
-export function nextWorldPoint(existing: CalibrationPoint[], dims: Space['dims']): Vec3 {
+function nextWorldPoint(existing: CalibrationPoint[], dims: Space['dims']): Vec3 {
   const { length: L, width: W } = dims
   const corners: Vec3[] = [[0, 0, 0], [L, 0, 0], [L, 0, W], [0, 0, W], [L / 2, 0, W / 2], [L / 2, 0, 0], [L / 2, 0, W], [0, 0, W / 2], [L, 0, W / 2]]
   const used = (c: Vec3) => existing.some((p) => Math.abs(p.world[0] - c[0]) < 1e-6 && Math.abs(p.world[2] - c[2]) < 1e-6 && Math.abs(p.world[1] - c[1]) < 1e-6)

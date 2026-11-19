@@ -7,7 +7,7 @@ import { ledResistor } from '@/iot/parts'
 import { validatePlan } from '@/iot/validate'
 import { createObject } from '@/objects/catalog'
 import { createSpace } from '@/objects/spaceFactory'
-import type { ControllerFamily, ObjectKind, Space } from '@/types'
+import type { ObjectKind, Space } from '@/types'
 
 function room(kinds: ObjectKind[]): Space {
   const s = createSpace({ name: 'T', type: 'classroom', dims: { length: 10, width: 8, height: 3 } })
@@ -72,16 +72,6 @@ describe('IoT planner — scaling beyond pin count', () => {
     expect(pwm).toBe(10)
     expect(errors(p)).toEqual([])
   })
-  it('an Uno never gets expanders and reports it has no Wi-Fi', () => {
-    const { plan: p } = plan(room(['ceilingFan', 'ceilingLight']), { controller: 'uno' as ControllerFamily })
-    expect(p.parts.some((x) => x.type === 'pca9685' || x.type === 'tca9548a')).toBe(false)
-    expect(p.issues.some((i) => i.code === 'uno-no-wifi')).toBe(true)
-  })
-  it('a Raspberry Pi with an LDR gets an ADS1115 instead of an invalid analog pin', () => {
-    const { plan: p } = plan(room(['ceilingLight']), { controller: 'rpi' as ControllerFamily, lightPart: 'ldr' })
-    expect(p.parts.some((x) => x.type === 'ads1115')).toBe(true)
-    expect(p.issues.some((i) => i.code === 'rpi-no-adc')).toBe(false)
-  })
   it('identical I²C sensors beyond two addresses add a TCA9548A', () => {
     const s = room(['ceilingLight'])
     const cfg0 = defaultHardware(s)
@@ -113,10 +103,6 @@ describe('IoT validator', () => {
     const motor = base.plan.parts.find((x) => x.type === 'dcMotor')!
     const { plan: p } = plan(s, { pinOverrides: { [`${motor.id}:GATE`]: 'GPIO12' } })
     expect(p.issues.some((i) => i.code === 'pin-caution')).toBe(true)
-  })
-  it('BME280 on an Uno is an error (3.3 V part on a 5 V bus)', () => {
-    const { plan: p } = plan(room(['ceilingLight']), { controller: 'uno' as ControllerFamily, tempPart: 'bme280' })
-    expect(p.issues.some((i) => i.code === 'logic-level' && i.severity === 'error')).toBe(true)
   })
   it('a motor without a supply is rejected', () => {
     const { plan: p, cfg } = plan(s)

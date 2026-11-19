@@ -3,9 +3,8 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import type { HistoryPoint } from '@/simulation/types'
 import { useSim } from '@/store/simStore'
 import { Toggle } from '@/components/ui/controls'
+import { CHART_SERIES as SERIES } from '@/three/overlays/colors'
 
-/** Categorical slots from the validated reference palette (fixed order, never cycled). */
-export const SERIES = { blue: '#2a78d6', orange: '#eb6834', aqua: '#1baf7a', violet: '#6250d6', yellow: '#c98500' }
 const MUTED = '#8a8f98'
 
 interface Row extends HistoryPoint {

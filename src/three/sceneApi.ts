@@ -29,7 +29,7 @@ export function floorPointFromClient(clientX: number, clientY: number, y = 0): T
   return ray.ray.intersectPlane(plane, hit) ? hit.clone() : null
 }
 
-export function setControlsEnabled(v: boolean) {
+function setControlsEnabled(v: boolean) {
   if (sceneApi.controls) sceneApi.controls.enabled = v
 }
 

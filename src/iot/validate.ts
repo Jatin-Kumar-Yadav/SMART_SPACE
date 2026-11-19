@@ -35,7 +35,6 @@ export function validatePlan(plan: HardwarePlan, cfg: HardwareConfig): Issue[] {
       case 'digital-io':
       case 'onewire': return p.in && p.out ? null : `${u.pinId} is input-only, but this data line must be driven by the controller as well as read`
       case 'adc-in':
-        if (plan.family === 'rpi') return 'a Raspberry Pi has no analog input'
         if (!p.adc) return `${u.pinId} has no ADC`
         if (board.hasWifi && p.adc2) return `${u.pinId} is on ADC2, which stops working while Wi-Fi is on`
         return null
@@ -89,7 +88,7 @@ export function validatePlan(plan: HardwarePlan, cfg: HardwareConfig): Issue[] {
       if (!board.fiveVTolerant && v === 5 && spec.logicV === 'vcc' && spec.category === 'sensor') push('logic-level', 'error', `${p.id} would drive a 5 V signal into a ${board.name} pin that is not 5 V tolerant.`, [p.id])
     }
     if (spec.interface === 'i2c' && spec.logicV === 3.3 && logicV === 5) {
-      if (p.type === 'bme280') push('logic-level', 'error', `BME280 ${p.id} is a 3.3 V device on a 5 V I²C bus (${board.name}). Add a bidirectional level shifter or choose an ESP32 / Raspberry Pi.`, [p.id])
+      if (p.type === 'bme280') push('logic-level', 'error', `BME280 ${p.id} is a 3.3 V device on a 5 V I²C bus (${board.name}). Add a bidirectional level shifter.`, [p.id])
       else push('logic-level', 'warning', `${p.id} (${spec.label}) is a 3.3 V chip on a 5 V bus. Many GY-302 boards tolerate it, but check the board you buy or add a level shifter.`, [p.id])
     }
     if (p.type === 'pir' && !board.fiveVTolerant) push('pir-level', 'info', `${p.id}: the HC-SR501 needs 5 V supply; its OUT pin is 3.3 V, so it is safe for ${board.name}.`, [p.id])
@@ -135,9 +134,6 @@ export function validatePlan(plan: HardwarePlan, cfg: HardwareConfig): Issue[] {
   }
 
   // ── 6. platform notes ──
-  if (plan.family === 'uno' && plan.controllers.length) push('uno-no-wifi', 'info', 'The Arduino Uno has no Wi-Fi. It talks to the backend through a USB-serial gateway; it cannot reach the MQTT broker on its own.', plan.controllers.map((c) => c.id))
-  if (plan.family === 'uno' && plan.parts.length > 12) push('uno-ram', 'warning', 'More than 12 parts on an Uno with 2 KB of RAM. Expect little headroom; consider an ESP32.', [])
-  if (plan.family === 'rpi' && plan.parts.some((p) => p.type === 'ldr') && !plan.parts.some((p) => p.type === 'ads1115')) push('rpi-no-adc', 'error', 'An LDR needs an ADC and a Raspberry Pi has none.', [])
   if (plan.parts.some((p) => p.type === 'ldr')) push('ldr-relative', 'info', 'LDR readings are relative. Calibrate against a lux meter before treating them as lux.', plan.parts.filter((p) => p.type === 'ldr').map((p) => p.id))
   if (plan.parts.some((p) => p.type === 'pir')) push('pir-not-count', 'info', 'PIR reports motion only. It cannot tell how many people are seated, so it never drives the seat count.', plan.parts.filter((p) => p.type === 'pir').map((p) => p.id))
   void partById

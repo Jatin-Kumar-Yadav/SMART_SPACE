@@ -11,3 +11,7 @@ export function setDevice(id: string, patch: DevicePatch) {
   useEditor.getState().setDeviceState(id, patch)
   simSetDevice(id, patch)
 }
+
+/** Open / close a window on the layout and the active scenario (one undo step). */
+export const setWindowState = (id: string, open: boolean) => useEditor.getState().setWindowOpen(id, open)
+

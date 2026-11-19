@@ -23,6 +23,16 @@ export type SpaceType =
   | 'house'
   | 'custom'
 
+export const SPACE_TYPES: { value: SpaceType; label: string }[] = [
+  { value: 'classroom', label: 'Classroom' },
+  { value: 'seminar-hall', label: 'Seminar Hall' },
+  { value: 'auditorium', label: 'Auditorium' },
+  { value: 'office', label: 'Office' },
+  { value: 'conference-room', label: 'Conference Room' },
+  { value: 'house', label: 'House' },
+  { value: 'custom', label: 'Custom' },
+]
+
 export type ObjectCategory = 'furniture' | 'architecture' | 'device'
 
 export type ObjectKind =
@@ -355,7 +365,7 @@ export interface CameraConfig {
 
 // ───────────────────────── IoT hardware ─────────────────────────
 
-export type ControllerFamily = 'esp32' | 'uno' | 'rpi'
+export type ControllerFamily = 'esp32'
 export type SensorKind = 'temperature' | 'light' | 'presence'
 export type TempSensorPart = 'dht22' | 'ds18b20' | 'bme280'
 export type LightSensorPart = 'bh1750' | 'ldr'
@@ -403,6 +413,13 @@ export interface Dimensions {
 }
 
 export type LengthUnit = 'm' | 'cm' | 'ft'
+
+export const LENGTH_UNITS: { value: LengthUnit; label: string }[] = [
+  { value: 'm', label: 'Metres' },
+  { value: 'cm', label: 'Centimetres' },
+  { value: 'ft', label: 'Feet' },
+]
+export const UNITS = LENGTH_UNITS
 
 export interface Space {
   schemaVersion: number

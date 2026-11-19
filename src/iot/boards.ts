@@ -54,81 +54,9 @@ export const ESP32: BoardSpec = {
   ],
 }
 
-// ── Arduino Uno (ATmega328P) ────────────────────────────────────────────────
-const unoPins: PinSpec[] = []
-const UNO_PWM = new Set([3, 5, 6, 9, 10, 11])
-for (let n = 0; n <= 13; n++) {
-  unoPins.push(pin(`D${n}`, n, {
-    label: `D${n}`,
-    pwm: UNO_PWM.has(n),
-    maxMa: 20,
-    reserved: n === 0 ? 'RX: USB serial' : n === 1 ? 'TX: USB serial' : undefined,
-    caution: n === 13 ? 'shared with the on-board LED' : undefined,
-  }))
-}
-for (let a = 0; a <= 5; a++) {
-  unoPins.push(pin(`A${a}`, 14 + a, { label: `A${a}`, pwm: false, adc: true, maxMa: 20, sda: a === 4, scl: a === 5 }))
-}
-export const UNO: BoardSpec = {
-  family: 'uno',
-  name: 'Arduino Uno R3',
-  logicV: 5,
-  pins: unoPins,
-  hasWifi: false,
-  fiveVTolerant: true,
-  max3v3Ma: 50,
-  max5vMa: 400,
-  adcBits: 10,
-  i2cDefault: { sda: 'A4', scl: 'A5' },
-  onewirePin: 'D2',
-  ramBytes: 2048,
-  wokwiType: 'wokwi-arduino-uno',
-  notes: [
-    'GPIO logic is 5 V: 3.3 V-only modules (BME280 breakouts without level shifting) need a level shifter.',
-    'Only D3, D5, D6, D9, D10, D11 provide PWM.',
-    'The standard Uno has no Wi-Fi: it cannot reach the MQTT broker by itself (a gateway such as an ESP32 or Raspberry Pi is needed).',
-    '2 KB of RAM limits how many sensors and channels one sketch can handle.',
-  ],
-}
-
-// ── Raspberry Pi 3/4/5 40-pin header (BCM numbering) ────────────────────────
-const piPins: PinSpec[] = []
-for (let n = 2; n <= 27; n++) {
-  piPins.push(pin(`GPIO${n}`, n, {
-    label: `GPIO${n}`,
-    pwm: true, // gpiozero software PWM works on any pin; hardware PWM on 12, 13, 18, 19
-    maxMa: 8,
-    sda: n === 2,
-    scl: n === 3,
-    reserved: n === 14 ? 'UART TX (console)' : n === 15 ? 'UART RX (console)' : undefined,
-    caution: n === 2 || n === 3 ? 'I²C bus with fixed 1.8 kΩ pull-ups: use only for I²C' : undefined,
-  }))
-}
-export const RPI: BoardSpec = {
-  family: 'rpi',
-  name: 'Raspberry Pi 4 / 5 (40-pin header)',
-  logicV: 3.3,
-  pins: piPins,
-  hasWifi: true,
-  fiveVTolerant: false,
-  max3v3Ma: 50,
-  max5vMa: 1000,
-  adcBits: 0,
-  i2cDefault: { sda: 'GPIO2', scl: 'GPIO3' },
-  onewirePin: 'GPIO4',
-  ramBytes: 1024 * 1024 * 1024,
-  wokwiType: null,
-  notes: [
-    'GPIO pins are 3.3 V only and are NOT 5 V tolerant: never connect a 5 V signal directly.',
-    'The Raspberry Pi has no analog inputs: an LDR needs an external ADC (ADS1115).',
-    'PWM on most pins is software PWM (jitter); hardware PWM is available on GPIO12/13/18/19.',
-    'The 3.3 V pin supplies only about 50 mA in total.',
-  ],
-}
-
-export const BOARDS: Record<ControllerFamily, BoardSpec> = { esp32: ESP32, uno: UNO, rpi: RPI }
-export const boardOf = (f: ControllerFamily) => BOARDS[f]
-export const pinOf = (f: ControllerFamily, id: string) => BOARDS[f].pins.find((p) => p.id === id)
+export const BOARDS: Record<ControllerFamily, BoardSpec> = { esp32: ESP32 }
+export const boardOf = (_f?: ControllerFamily) => ESP32
+export const pinOf = (_f: ControllerFamily, id: string) => ESP32.pins.find((p) => p.id === id)
 
 /** A pin an allocator may hand out for `fn` (ignores caution; the planner prefers pins without it). */
 export function pinSupports(p: PinSpec, fn: 'pwm' | 'digital-out' | 'digital-in' | 'digital-io' | 'adc' | 'onewire', wifiOn: boolean): boolean {

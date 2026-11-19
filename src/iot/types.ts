@@ -43,7 +43,7 @@ export interface BoardSpec {
   logicV: 3.3 | 5
   pins: PinSpec[]
   hasWifi: boolean
-  /** can the GPIO pins tolerate 5 V? (never true for ESP32 / Raspberry Pi) */
+  /** can the GPIO pins tolerate 5 V? (false for ESP32) */
   fiveVTolerant: boolean
   /** mA that the 3.3 V pin can supply to external parts */
   max3v3Ma: number

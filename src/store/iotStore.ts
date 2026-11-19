@@ -52,7 +52,7 @@ export function ensureHardware(): HardwareConfig | undefined {
   if (!sp) return undefined
   if (!sp.hardware) {
     useEditor.getState().setHardware(() => defaultHardware(sp))
-  } else if (sp.hardware.controller === 'rpi') {
+  } else if ((sp.hardware.controller as string) !== 'esp32') {
     useEditor.getState().setHardware((h) => ({ ...h!, controller: 'esp32', pinOverrides: {} }))
   }
   return useEditor.getState().space!.hardware

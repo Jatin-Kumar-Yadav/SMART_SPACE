@@ -71,7 +71,7 @@ export function connectionGuide(plan: HardwarePlan, cfg: HardwareConfig): string
       out.push(`| ${p.id} · ${spec.label} | ${role} | ${to} | ${note} |`)
     }
     out.push('')
-    if (mine.some((p) => p.type === 'ds18b20')) out.push('- **1-Wire**: all DS18B20 probes share one data pin. Add **one 4.7 kΩ resistor** from DATA to the sensor supply (3.3 V on ESP32 / Pi, 5 V on Uno).')
+    if (mine.some((p) => p.type === 'ds18b20')) out.push('- **1-Wire**: all DS18B20 probes share one data pin. Add **one 4.7 kΩ resistor** from DATA to 3.3 V.')
     if (mine.some((p) => PARTS[p.type].interface === 'i2c')) out.push('- **I²C**: SDA and SCL are shared by every I²C part on this controller. Most breakouts include pull-ups; do not add more than ~3 sets.')
     if (mine.some((p) => p.type === 'pir')) out.push('- **PIR** needs 5 V (the HC-SR501 will not run from 3.3 V). Give it a minute to settle after power-up. It reports motion, not a seat count.')
     if (mine.some((p) => p.type === 'ldr')) out.push('- **LDR** reads a relative level. Calibrate against a lux meter before trusting it as lux.')
